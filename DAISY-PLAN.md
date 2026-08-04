@@ -8,7 +8,8 @@ Claude menu-bar icons with animations of Daisy, a Bernese Mountain Dog.
 `DAISY-PROMPTS.md` — read that before touching the art pipeline.
 
 **CODE COMPLETE and building** (`./build.sh` → ad-hoc signed local build). Fork is
-`wbuf81/claude-status-bar` (public, `origin`), upstream tracked as `upstream`.
+`wbuf81/daisy-claude-status-bar` (public, `origin`), upstream tracked as `upstream`. Renamed from
+`wbuf81/claude-status-bar` on 2026-08-04; GitHub redirects the old URL, so old clones still work.
 
 | File | Role |
 |---|---|
