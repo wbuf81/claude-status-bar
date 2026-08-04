@@ -12,7 +12,9 @@ Why each step exists is documented in DAISY-PROMPTS.md; the short version:
   * Backgrounds are never true #FF00FF (observed 199-245 R, 12-64 G, 149-218 B) but are always flat
     and always unambiguous against her palette, so the magenta key is deliberately generous.
   * Frames arrive in independent grid cells with inconsistent placement, so they are re-aligned onto
-    one shared canvas: nose-align for locomotion, centroid-align for idle poses.
+    one shared canvas by a feature of the DOG: her muzzle and ear line for locomotion, her ground
+    line and head centre for lying and sitting poses. Never her centre of mass - whatever moves
+    drags the centroid with it, so centroid-aligning compensates for the motion and cancels it.
   * A few sheets need hand-coded repairs (a two-tailed frame, a mirrored-away facing direction, a
     sleep Z that teleports). Those live in ANIMATIONS below, not in the generic code path.
 """
@@ -40,8 +42,10 @@ NATIVE = 100          # logical canvas the generator actually drew on
 PALETTE_SIZE = 16     # NOT 8 - the art uses load-bearing anti-aliasing tones
 PAD = 0               # no slack: every logical px of canvas height costs menu-bar height
 
-# align: "nose"     - pin the muzzle (rightmost px) and ears (topmost px); for locomotion
-#        "centroid" - balance the mass; for idle poses with no meaningful muzzle anchor
+# align: "nose"   - pin the muzzle (rightmost px) and ears (topmost px); for locomotion
+#        "ground" - pin her ground line and head centre; for lying and sitting poses
+#        "ground-front" - ground line + front end; for the stretch, whose raised rump
+#                         breaks the "top rows are her head" assumption
 # mirror: flip every frame horizontally (fixes facing direction on side views)
 # order:  frame indices to keep, in playback order. Negative index means "mirror of |i|-1",
 #         used to manufacture a missing pose from a symmetrical front view.
@@ -49,26 +53,27 @@ PAD = 0               # no slack: every logical px of canvas height costs menu-b
 # loop:   False for one-shot sequences
 ANIMATIONS = {
     "sleep": dict(
-        file="01-sleep.png", grid=(2, 2), align="centroid", fps=3.0,
-        order=[0, 1, 2, 3], fix="sleep_z",
-        note="Z is a separate blob; its x position teleports, so fix_sleep_z re-places it.",
+        file="01-sleep.png", grid=(2, 2), align="ground", fps=3.0,
+        order=[0, 2, 3], fix="sleep_z",
+        note="Frame 1 dropped: its tail flick reads as a paw sticking out of her back. Z is a "
+             "separate blob whose x position teleports, so fix_sleep_z re-places it on a rise.",
     ),
     "drowsy": dict(
-        file="02-blink.png", grid=(2, 2), align="centroid", fps=2.5,
+        file="02-blink.png", grid=(2, 2), align="ground", fps=2.5,
         order=[0, 2],   # f2 is a duplicate of f1 (half-lid never rendered); f4 split into "alert"
         note="2-state blink. f4 lives in the 'alert' clip because it is 22% different.",
     ),
     "alert": dict(
-        file="02-blink.png", grid=(2, 2), align="centroid", fps=1.4,
+        file="02-blink.png", grid=(2, 2), align="ground", fps=1.4,
         order=[0, 3], loop=False,
         note="Ears perk + head lift. Occasional idle beat; strobes if looped every cycle.",
     ),
     "trot": dict(
-        file="03-trot.png", grid=(2, 2), align="nose", fps=9.0,
+        file="03-trot.png", grid=(2, 2), align="nose", fps=6.5,
         order=[0, 1, 2, 3],
     ),
     "dig": dict(
-        file="04-dig.png", grid=(2, 2), align="nose", fps=10.0,
+        file="04-dig.png", grid=(2, 2), align="nose", fps=6.5,
         order=[0, 1, 2, 3], intro=1,
         note="f1 has no dirt at all, so it flickers if looped. Plays once as a wind-up.",
     ),
@@ -77,22 +82,27 @@ ANIMATIONS = {
         order=[0, 1, 2, 3],
     ),
     "zoomies": dict(
-        file="06-zoomies.png", grid=(2, 2), align="nose", fps=14.0,
+        file="06-zoomies.png", grid=(2, 2), align="nose", fps=9.5,
         order=[0, 1, 2, 3],
         note="Pale speed puffs arrive as separate blobs; DaisyRender inks them instead of "
              "punching them out, else they vanish in System mode.",
     ),
     "ask": dict(
-        file="07-ask.png", grid=(2, 2), align="centroid", fps=3.5,
+        file="07-ask.png", grid=(2, 2), align="ground", fps=3.5,
         order=[0, 1, 2, 3],
     ),
     "wag": dict(
-        file="08-wag.png", grid=(2, 2), align="centroid", fps=11.0,
-        order=[0, 1, -1, 3],   # -1 => mirror of frame 0, replacing the two-tailed generated f3
-        note="Generated f3 had TWO TAILS. Discarded; mirror(f1) supplies the tail-sweeps-right pose.",
+        file="08-wag.png", grid=(2, 2), align="ground", fps=4.0,
+        order=[0, 1, 0, 3],
+        note="Generated f3 had TWO TAILS and is discarded. Mirroring f1 to fake a tail-sweeps-right "
+             "pose was tried and REJECTED: she measures 31.6% different from her own mirror, so the "
+             "flip swung her whole body, not just her tail (33.6% change in the central body region "
+             "where only the tail should move). Reads fine as a still, reads as a twitch in motion. "
+             "Instead this is a pendulum on real frames only - down, up, down, up-with-a-bark - "
+             "passing through rest twice per cycle, which is how a wag actually works.",
     ),
     "yawn": dict(
-        file="09-yawn.png", grid=(2, 2), align="centroid", fps=2.2,
+        file="09-yawn.png", grid=(2, 2), align="ground-front", fps=2.2,
         order=[0, 1, 2, 3], mirror=True, loop=False,
         note="Generated facing LEFT while every other side view faces right.",
     ),
@@ -192,35 +202,56 @@ def blobs_in(img: Image.Image, box) -> list[list[tuple[int, int]]]:
 
 
 class Frame:
-    """One cell: the dog blob plus any particle blobs (dirt, speed puffs, the sleep Z)."""
+    """One cell: the dog blob plus any particle blobs (dirt, speed puffs, the sleep Z).
 
-    def __init__(self, dog, particles, src: Image.Image):
-        self.dog = dog
-        self.particles = particles
-        self.src = src
+    Pixels carry their own colour rather than being looked up in the source image, so a frame can be
+    mirrored or a particle moved without the colours going with the old coordinates.
+    """
+
+    def __init__(self, dog, particles):
+        self.dog = dog                  # [(x, y, rgba)]
+        self.particles = particles      # [[(x, y, rgba)], …]
 
     @property
     def dog_box(self):
-        xs = [c[0] for c in self.dog]; ys = [c[1] for c in self.dog]
+        xs = [p[0] for p in self.dog]; ys = [p[1] for p in self.dog]
         return min(xs), min(ys), max(xs), max(ys)
 
     def pixels(self):
         for cells, is_particle in ((self.dog, False), *[(p, True) for p in self.particles]):
-            for x, y in cells:
-                yield x, y, is_particle
+            for x, y, rgba in cells:
+                yield x, y, rgba, is_particle
+
+    def content_box(self):
+        """Extents of EVERYTHING, particles included - what actually has to fit on the canvas."""
+        xs = [p[0] for p in self.pixels()]; ys = [p[1] for p in self.pixels()]
+        return min(xs), min(ys), max(xs), max(ys)
+
+    def mirrored(self) -> "Frame":
+        """Flip horizontally about the dog's own bounding box.
+
+        Mirroring here rather than flipping the finished canvas matters: a canvas flip maps
+        x -> CW-1-x, which shifts an even-width sprite half a pixel and made the wag visibly jitter
+        as it swapped sides. Flipping in source space keeps alignment exact.
+        """
+        dx0, _, dx1, _ = self.dog_box
+        flip = lambda cells: [(dx0 + dx1 - x, y, rgba) for x, y, rgba in cells]
+        return Frame(flip(self.dog), [flip(p) for p in self.particles])
 
 
 def split(img: Image.Image, grid) -> list[Frame]:
     cols, rows = grid
     n = img.width
     cw, ch = n // cols, n // rows
+    sp = img.load()
     frames = []
     for r in range(rows):
         for c in range(cols):
             bs = blobs_in(img, (c * cw, r * ch, (c + 1) * cw, (r + 1) * ch))
             if not bs:
                 continue
-            frames.append(Frame(bs[0], bs[1:], img))
+            with_colour = [[(x, y, sp[x, y]) for x, y in blob] for blob in bs]
+            frames.append(Frame(with_colour[0], with_colour[1:]))
     return frames
 
 
@@ -229,12 +260,15 @@ def split(img: Image.Image, grid) -> list[Frame]:
 def fix_sleep_z(frames: list[Frame]) -> list[Frame]:
     """Re-place the sleep Z on a clean rising diagonal.
 
-    Grok drew the Z at inconsistent x positions (right, left, centre, right), so it teleports
-    rather than drifting upward. The Z is a separate blob, so it can simply be moved. Frame
-    sizes are small/big/big/small, which suits low -> mid -> high -> reset.
+    Grok drew the Z at inconsistent x positions (right, left, centre, right), so it teleports rather
+    than drifting upward. The Z is a separate blob, so it can simply be moved.
+
+    Indexed by ORIGINAL frame number, because the ANIMATIONS order below drops frame 1 (its tail
+    flick reads as a paw sticking out of her back). Used frames are 0, 2, 3 -> small/low, big/mid,
+    small/high, which plays as a Z puffing up and drifting away.
     """
-    rise = [0, 3, 6, 0]        # logical px lifted above the base
-    drift = [0, 1, 2, 0]       # px drifted toward her nose
+    rise = [0, 0, 3, 6]        # logical px lifted above her head
+    drift = [0, 0, 1, 2]       # px drifted toward her nose as it rises
     out = []
     for i, f in enumerate(frames):
         if not f.particles:
@@ -242,14 +276,14 @@ def fix_sleep_z(frames: list[Frame]) -> list[Frame]:
             continue
         dx0, dy0, dx1, dy1 = f.dog_box
         z = max(f.particles, key=len)
-        zx0 = min(c[0] for c in z); zy1 = max(c[1] for c in z)
-        # anchor: just above her head, which is the right-hand end of the curled body
+        zx0 = min(p[0] for p in z); zy1 = max(p[1] for p in z)
+        # anchor just above her head, which is the right-hand end of the curled body
         tx = dx1 - 6 + drift[i % 4]
         ty = dy0 - 1 - rise[i % 4]
-        shift = (tx - zx0, ty - zy1)
-        moved = [(x + shift[0], y + shift[1]) for x, y in z]
+        sx, sy = tx - zx0, ty - zy1
+        moved = [(x + sx, y + sy, rgba) for x, y, rgba in z]
         others = [p for p in f.particles if p is not z]
-        out.append(Frame(f.dog, [moved, *others], f.src))
+        out.append(Frame(f.dog, [moved, *others]))
     return out
 
 
@@ -258,36 +292,93 @@ FIXES = {"sleep_z": fix_sleep_z}
 
 # ---------------------------------------------------------------- alignment
 
-def place(frame: Frame, canvas, align: str, mirror: bool):
-    """Render one frame onto the shared canvas. Returns (RGBA image, particle mask)."""
-    cw, ch = canvas
-    sp = frame.src.load()
+def anchor_of(frame: Frame, align: str) -> tuple[int, int]:
+    """The point on the dog that holds still from frame to frame.
+
+    Frames arrive at inconsistent positions inside their grid cells, so every frame is positioned by
+    a feature of the DOG rather than by its cell.
+
+      nose   - muzzle (rightmost px) and ear line (topmost px). Her head stays put and the legs do
+               the moving, which reads far better on a run cycle than planting her feet: frame
+               heights vary by 5 px, so pinning the bottom makes her pogo.
+      ground - her ground line (lowest px) plus the horizontal centre of her HEAD. For every pose
+               where she is lying, sitting or stretching, i.e. in contact with the floor.
+
+    Anchoring on the centre of MASS was a mistake and is deliberately gone. Whatever moves - ears
+    lifting, a tail sweeping - drags the centroid with it, so aligning on the centroid compensates for
+    the motion and cancels it out. It cut the ear-perk from 22% different in the source sheet down to
+    6.5%, i.e. to nearly invisible. The head centre is used horizontally for the same reason: a tail
+    sweeping side to side would otherwise pull the whole dog after it.
+    """
     dx0, dy0, dx1, dy1 = frame.dog_box
-    dw, dh = dx1 - dx0 + 1, dy1 - dy0 + 1
-
     if align == "nose":
-        # pin the muzzle to the right edge and the ears to the top: her head holds still
-        ox = cw - PAD - dw - dx0
-        oy = PAD - dy0
-    else:
-        cx = sum(c[0] for c in frame.dog) / len(frame.dog)
-        cy = sum(c[1] for c in frame.dog) / len(frame.dog)
-        ox = int(round(cw / 2 - cx))
-        oy = int(round(ch / 2 - cy))
+        return dx1, dy0
+    if align == "ground-front":
+        # her front end (rightmost px) plus the ground line. For the stretch-and-yawn, where the
+        # "top rows are her head" assumption below is false - in a downward-dog her raised rump is
+        # the top of the sprite, so a head-centre anchor swings violently between frames.
+        return dx1, dy1
 
+    # horizontal: centre of the top 40% of her rows - head and shoulders, which stay put while a
+    # tail sweeps or paws lift
+    cut = dy0 + max(1, int((dy1 - dy0 + 1) * 0.40))
+    head = [p[0] for p in frame.dog if p[1] <= cut]
+    hx = sum(head) / len(head) if head else (dx0 + dx1) / 2
+    return int(round(hx)), dy1
+
+
+def clip_extents(seq: list[Frame], align: str) -> tuple[int, int, int, int]:
+    """Bounding box of a whole clip's content, in anchor-relative coordinates.
+
+    Particles are included, which is the point: the earlier version measured only the dog, so a
+    risen sleep Z or dirt thrown wide of her paws fell outside the canvas and was silently dropped.
+    """
+    x0 = y0 = 10 ** 9
+    x1 = y1 = -10 ** 9
+    for f in seq:
+        ax, ay = anchor_of(f, align)
+        for x, y, _, _ in f.pixels():
+            x0 = min(x0, x - ax); x1 = max(x1, x - ax)
+            y0 = min(y0, y - ay); y1 = max(y1, y - ay)
+    return x0, y0, x1, y1
+
+
+def clip_offset(extents, canvas) -> tuple[int, int]:
+    """Where a clip's anchor sits on the shared canvas: one offset for the whole clip.
+
+    Per-CLIP rather than per-FRAME deliberately. An earlier attempt clamped each frame individually
+    to keep it on canvas, which silently overrode the alignment by a different amount on every frame
+    - the wag's mirrored frame shifted 0 px while its neighbours shifted 7-8, and that was the
+    visible jitter as the tail swapped sides.
+
+    Horizontally the clip is centred; vertically its lowest pixel is put on the canvas floor, so
+    every clip shares one ground line and her feet do not jump when the state changes.
+    """
+    x0, y0, x1, y1 = extents
+    cw, ch = canvas
+    ox = (cw - (x1 - x0 + 1)) // 2 - x0
+    oy = (ch - 1 - PAD) - y1
+    return ox, oy
+
+
+def place(frame: Frame, canvas, align: str, offset: tuple[int, int]):
+    """Render one frame onto the shared canvas. Returns (RGBA image, particle mask, clipped count)."""
+    cw, ch = canvas
+    ax, ay = anchor_of(frame, align)
+    ox, oy = offset
     img = Image.new("RGBA", canvas, (0, 0, 0, 0))
     mask = Image.new("L", canvas, 0)
     ip, mp = img.load(), mask.load()
-    for x, y, is_particle in frame.pixels():
-        tx, ty = x + ox, y + oy
+    clipped = 0
+    for x, y, rgba, is_particle in frame.pixels():
+        tx, ty = x - ax + ox, y - ay + oy
         if 0 <= tx < cw and 0 <= ty < ch:
-            ip[tx, ty] = sp[x, y]
+            ip[tx, ty] = rgba
             if is_particle:
                 mp[tx, ty] = 255
-    if mirror:
-        img = ImageOps.mirror(img)
-        mask = ImageOps.mirror(mask)
-    return img, mask
+        else:
+            clipped += 1
+    return img, mask, clipped
 
 
 # ---------------------------------------------------------------- palette
@@ -428,29 +519,45 @@ def main() -> int:
               f"{sum(len(f.particles) for f in frames)} particle blobs"
               + (f", despeckled {fixed}px" if fixed else ""))
 
-    # canvas must hold the widest and tallest content of any frame we actually keep
-    cw = ch = 0
-    for name, (spec, frames) in staged.items():
-        for idx in spec["order"]:
-            f = frames[abs(idx) - 1 if idx < 0 else idx]
-            xs = [x for x, _, _ in f.pixels()]; ys = [y for _, y, _ in f.pixels()]
-            cw = max(cw, max(xs) - min(xs) + 1)
-            ch = max(ch, max(ys) - min(ys) + 1)
-    canvas = (cw + PAD * 2, ch + PAD * 2)
-    print(f"\nshared canvas: {canvas[0]}x{canvas[1]} logical px "
-          f"-> {canvas[0]/2:.1f}x{canvas[1]/2:.1f} pt at 1 logical px per device px on 2x")
-
-    # --- pass 2: place, then build one palette from everything
-    placed = {}
+    # Resolve each clip's playback order into concrete frames, mirroring in SOURCE space so
+    # alignment is computed on the final shape (see Frame.mirrored).
+    resolved: dict[str, tuple[dict, list[Frame]]] = {}
     for name, (spec, frames) in staged.items():
         seq = []
         for idx in spec["order"]:
             f = frames[abs(idx) - 1 if idx < 0 else idx]
-            img, mask = place(f, canvas, spec["align"], spec.get("mirror", False))
-            if idx < 0:                      # manufacture the missing pose by mirroring
-                img, mask = ImageOps.mirror(img), ImageOps.mirror(mask)
-            seq.append((img, mask))
-        placed[name] = (spec, seq)
+            if idx < 0:                       # manufacture a missing pose from a symmetrical view
+                f = f.mirrored()
+            if spec.get("mirror"):            # whole clip drawn facing the wrong way
+                f = f.mirrored()
+            seq.append(f)
+        resolved[name] = (spec, seq)
+
+    # Canvas is sized by the largest clip measured in ANCHOR-RELATIVE space, particles included.
+    # Width is effectively free (the status item is variable-length); height is what costs menu bar
+    # space, so it is reported prominently.
+    extents = {n: clip_extents(seq, s["align"]) for n, (s, seq) in resolved.items()}
+    cw = max(x1 - x0 + 1 for x0, _, x1, _ in extents.values())
+    ch = max(y1 - y0 + 1 for _, y0, _, y1 in extents.values())
+    canvas = (cw + PAD * 2, ch + PAD * 2)
+    print(f"\nshared canvas: {canvas[0]}x{canvas[1]} logical px "
+          f"-> {canvas[0]/2:.1f}x{canvas[1]/2:.1f} pt at 1 logical px per device px on 2x")
+    tallest = max(extents.items(), key=lambda kv: kv[1][3] - kv[1][1])
+    print(f"height driven by '{tallest[0]}' ({tallest[1][3]-tallest[1][1]+1} px)")
+
+    # --- pass 2: place, then build one palette from everything
+    placed = {}
+    total_clipped = 0
+    for name, (spec, seq) in resolved.items():
+        off = clip_offset(extents[name], canvas)
+        out = []
+        for f in seq:
+            img, mask, clipped = place(f, canvas, spec["align"], off)
+            total_clipped += clipped
+            out.append((img, mask))
+        placed[name] = (spec, out)
+    if total_clipped:
+        print(f"WARNING: {total_clipped} pixels clipped off the canvas")
 
     palette = build_palette([im for _, seq in placed.values() for im, _ in seq])
     print(f"shared palette ({len(palette)}): {palette}")
