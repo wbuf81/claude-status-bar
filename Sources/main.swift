@@ -339,6 +339,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         var started: Bool       // true once the session had real activity (a prompt/tool); a merely-opened
                                 // conversation seeds started=false and stays out of the dropdown.
         var startedAt: Double, ts: Double
+        var tool: String        // raw tool name from the hook ("Bash", "Edit", …); "" when not in a tool
         var eff: String = ""   // effective state, recomputed once per tick in evaluate()
         var branch: String = ""      // git branch (or short SHA when detached); "" outside a repo
         var displayName: String = "" // project, parent-qualified when two live sessions share a name
@@ -347,6 +348,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             self.id = id
             self.state = o["state"] as? String ?? "idle"
             self.label = o["label"] as? String ?? ""
+            self.tool = o["tool"] as? String ?? ""   // hooks/update.js writes this; Daisy routes on it
             self.project = o["project"] as? String ?? ""
             self.transcript = o["transcript"] as? String ?? ""
             self.cwd = o["cwd"] as? String ?? ""
@@ -373,7 +375,10 @@ final class StatusController: NSObject, NSMenuDelegate {
     let frames: [NSImage] = StatusController.loadFrames()
     let spriteFPS: Double = 9 // tune: 8 frames per loop -> ~0.9s/cycle
 
-    enum AnimStyle: String { case web, code, crab }
+    enum AnimStyle: String { case web, code, crab, daisy }
+    /// Daisy alone animates in every state (idle, permission, per-tool), so she needs a driver that
+    /// remembers which clip is playing rather than a single frame index. See DaisyState.swift.
+    let daisy = DaisyDriver()
     var animStyle: AnimStyle = .web
     var showTimer = false
     var iconSystem = false // false = brand Orange; true = adaptive black/white (template image)
@@ -431,6 +436,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         case .web: return spriteFPS
         case .code: return Double(codeGlyphs.count * codeSub) / codeCycle
         case .crab: return crabFPS
+        case .daisy: return daisy.fps      // varies per clip: 2.2 for a yawn, 14 for zoomies
         }
     }
     var frameCount: Int {
@@ -438,6 +444,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         case .web: return max(1, frames.count)
         case .code: return codeGlyphs.count * codeSub
         case .crab: return max(1, crabFrames.count)
+        case .daisy: return daisy.frameCount
         }
     }
 
@@ -687,7 +694,8 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         let animParent = NSMenuItem(title: "Animation", action: nil, keyEquivalent: "")
         let animSub = NSMenu()
-        for (style, name) in [(AnimStyle.web, "Claude Spark"), (AnimStyle.code, "Claude Code"), (AnimStyle.crab, "Crab Walking")] {
+        for (style, name) in [(AnimStyle.web, "Claude Spark"), (AnimStyle.code, "Claude Code"),
+                              (AnimStyle.crab, "Crab Walking"), (AnimStyle.daisy, "Daisy")] {
             let it = NSMenuItem(title: name, action: #selector(chooseStyle(_:)), keyEquivalent: "")
             it.target = self
             it.representedObject = style.rawValue
@@ -1188,7 +1196,16 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
         statusItem.button?.toolTip = lead.map(sessionMenuLine)  // names repo + surface + state on hover
 
-        guard let lead = lead else { renderResting(); return }
+        guard let lead = lead else {
+            // No live session at all: still tell Daisy, so she keeps dozing and fidgeting.
+            if daisy.update(eff: "idle", tool: ""), animStyle == .daisy { restartAnimTimerIfNeeded() }
+            renderResting()
+            return
+        }
+        // Pick Daisy's clip from the real state before rendering. Cheap and a no-op for other styles.
+        if daisy.update(eff: lead.eff, tool: lead.tool), animStyle == .daisy {
+            restartAnimTimerIfNeeded()
+        }
         switch lead.eff {
         case "permission":
             render(label: statusText(lead, eff: lead.eff), color: amber, animate: false, startedAt: 0, dot: true)
@@ -1279,25 +1296,53 @@ final class StatusController: NSObject, NSMenuDelegate {
         guard let button = statusItem.button else { return }
         button.contentTintColor = nil // we paint the icon color ourselves; template-tint is unreliable
         activeBase = label
-        activeColor = color
+        // Daisy is inherently tri-colour, so the only meaningful distinction for her is full-colour
+        // vs template. She follows the Icon colour setting and ignores the amber permission tint
+        // (which would otherwise force full colour while in System mode).
+        activeColor = animStyle == .daisy ? iconColor : color
         self.startedAt = startedAt
 
-        if animate {
-            if animTimer == nil {
-                let t = Timer(timeInterval: 1.0 / fps, repeats: true) { [weak self] _ in self?.animStep() }
-                RunLoop.main.add(t, forMode: .common)
-                animTimer = t
-            }
+        // Daisy animates in EVERY state - idle and awaiting-permission included - and replaces the
+        // static yellow dot with her head-tilt "may I?" clip.
+        let wantsAnimation = animate || animStyle == .daisy
+        let showDot = dot && animStyle != .daisy
+
+        if wantsAnimation {
+            restartAnimTimerIfNeeded()
         } else {
             animTimer?.invalidate(); animTimer = nil
             frameIdx = 0
-            button.image = dot ? dotIcon(color: color) : restingIcon(color: color)
+            button.image = showDot ? dotIcon(color: activeColor) : restingIcon(color: activeColor)
         }
         applyTitle()
-        if button.image == nil { button.image = dot ? dotIcon(color: color) : restingIcon(color: color) }
+        if button.image == nil {
+            button.image = showDot ? dotIcon(color: activeColor) : restingIcon(color: activeColor)
+        }
+    }
+
+    /// (Re)create the animation timer whenever the required interval changes.
+    ///
+    /// The other styles have one fixed frame rate, so upstream creates this timer once and leaves it.
+    /// Daisy's rate is per-clip - 2.2 fps for a yawn against 14 for zoomies - so it has to be rebuilt
+    /// whenever her clip changes, or a sleepy clip would play at sprint speed.
+    func restartAnimTimerIfNeeded() {
+        let want = 1.0 / max(0.1, fps)
+        if let t = animTimer, t.isValid, abs(t.timeInterval - want) < 0.001 { return }
+        animTimer?.invalidate()
+        let t = Timer(timeInterval: want, repeats: true) { [weak self] _ in self?.animStep() }
+        RunLoop.main.add(t, forMode: .common)
+        animTimer = t
     }
 
     func animStep() {
+        if animStyle == .daisy {
+            // advance() returns true when a one-shot beat finished and handed back to another clip,
+            // which means a new frame rate.
+            if daisy.advance() { restartAnimTimerIfNeeded() }
+            statusItem.button?.image = iconImage(color: activeColor, frame: 0)
+            applyTitle()
+            return
+        }
         frameIdx = (frameIdx + 1) % frameCount
         statusItem.button?.image = iconImage(color: activeColor, frame: frameIdx)
         applyTitle() // refresh the elapsed clock
@@ -1332,6 +1377,10 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func iconImage(color: NSColor?, frame: Int) -> NSImage {
+        // Daisy ignores the caller's frame index: the driver owns her clip and position within it.
+        if animStyle == .daisy {
+            return daisy.image(colour: color) ?? NSImage(size: NSSize(width: 18, height: 18))
+        }
         if animStyle == .web { return tint(frames, color: color, frame: frame) }
         if animStyle == .crab { return crabIcon(color: color, frame: frame) }
         let i = (frame / codeSub) % codeGlyphs.count
@@ -1397,6 +1446,11 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     let logoSet: [NSImage] = Data(base64Encoded: claudeLogoPNG).flatMap(NSImage.init(data:)).map { [$0] } ?? []
     func restingIcon(color: NSColor?) -> NSImage {
+        // Daisy has no true resting frame - "resting" for her is the sleeping or dozing clip, which
+        // is still animating. This is only ever hit as a first paint before the timer starts.
+        if animStyle == .daisy {
+            return daisy.image(colour: color) ?? NSImage(size: NSSize(width: 18, height: 18))
+        }
         if animStyle == .crab { return crabIcon(color: color, frame: 0) }
         return tint(logoSet.isEmpty ? frames : logoSet, color: color, frame: 0)
     }
