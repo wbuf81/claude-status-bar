@@ -4,11 +4,17 @@
 > doing — dozing when idle, digging when editing, tearing about when a command runs, and sitting with
 > a paw up when Claude needs your permission.
 >
+> **Actual size, in a menu bar:**
+>
+> ![in the menu bar](art/showcase/menubar.gif)
+>
+> The ten clips, at roughly double menu-bar scale so you can see them:
+>
 > | | | | | |
 > |:---:|:---:|:---:|:---:|:---:|
-> | <img src="art/showcase/trot.gif" width="150"> | <img src="art/showcase/zoomies.gif" width="150"> | <img src="art/showcase/dig.gif" width="150"> | <img src="art/showcase/sniff.gif" width="150"> | <img src="art/showcase/ask.gif" width="150"> |
+> | ![trot](art/showcase/trot.gif) | ![zoomies](art/showcase/zoomies.gif) | ![dig](art/showcase/dig.gif) | ![sniff](art/showcase/sniff.gif) | ![ask](art/showcase/ask.gif) |
 > | **thinking** | **running a command** | **editing a file** | **reading / searching** | **awaiting permission** |
-> | <img src="art/showcase/wag.gif" width="150"> | <img src="art/showcase/drowsy.gif" width="150"> | <img src="art/showcase/sleep.gif" width="150"> | <img src="art/showcase/yawn.gif" width="150"> | <img src="art/showcase/alert.gif" width="150"> |
+> | ![wag](art/showcase/wag.gif) | ![drowsy](art/showcase/drowsy.gif) | ![sleep](art/showcase/sleep.gif) | ![yawn](art/showcase/yawn.gif) | ![alert](art/showcase/alert.gif) |
 > | **turn complete** | **idle** | **idle 2 min+** | **stretching** | **ears up** |
 >
 > Full details, the state map, and how the art was made: **[DAISY.md](DAISY.md)**

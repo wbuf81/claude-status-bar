@@ -5,6 +5,10 @@ Bernese Mountain Dog as a fourth menu-bar animation style. She reacts to what Cl
 actually doing — sleeping when idle, digging when editing files, tearing about when a command runs,
 and sitting with a paw up when Claude needs your permission.
 
+**Actual size, in a menu bar:**
+
+![in the menu bar](art/showcase/menubar.gif)
+
 ![all clips](art/showcase/all-clips.png)
 
 Everything upstream still works. Daisy is added alongside Claude Spark, Claude Code and Crab
@@ -60,6 +64,7 @@ does.
 ./tools/preview.sh          # GUI viewer: every clip, both colour modes, zoomed and at true size
 ./tools/cycle-states.py     # drive the real menu bar through all ten states
 ./tools/drivertest.sh       # headless checks of the state machine, on a virtual clock
+./tools/make_showcase.py    # regenerate the GIFs on this page from the built frames
 ```
 
 `preview.sh` compiles against the real frame data and renderer, so a clip that looks wrong there is
