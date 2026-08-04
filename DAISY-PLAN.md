@@ -282,14 +282,54 @@ sweep), `recolor.py` (the failed rust experiment). Contact sheets: `legibility2.
 | a clip's speed, frame order, alignment | `ANIMATIONS` in `tools/make_frames.py`, then rerun it |
 | System-mode contrast | `DaisyRender.inkCut` (150; safe plateau is ~55–175) |
 
+## Alignment: hard-won rules
+
+Frames arrive at inconsistent positions inside their grid cells, so each one is re-positioned by a
+feature of the dog. Getting this wrong produced every "looks a bit off" complaint in review.
+
+**Never align on the centre of mass.** Whatever moves drags the centroid with it, so aligning on the
+centroid *compensates for the motion and cancels it*. The ear-perk fidget measured 22% different in
+the source sheet and came out at 6.5% — nearly invisible — purely because of this.
+
+**Align per-frame, fit per-clip.** An earlier version clamped each frame individually to keep it on
+canvas, which silently overrode alignment by a different amount on every frame: the wag's mirrored
+frame shifted 0 px while its neighbours shifted 7–8. That was the visible jitter.
+
+**Measure content, not the dog.** Particles sit outside the dog's bounding box — a risen sleep Z,
+dirt thrown wide. Sizing the canvas from the dog alone silently dropped both large ZZZs and clipped
+the digging dirt.
+
+**Mirror in source space, never on the finished canvas.** A canvas flip maps `x → CW-1-x`, which
+shifts an even-width sprite half a pixel.
+
+**Do not mirror a front view to fake a new pose in an ANIMATION.** She measures 31.6% different from
+her own mirror, so a flip swings her whole body, not just her tail. It looks completely fine as a
+still image and reads as a twitch in motion — this cost two review rounds.
+
+| clip family | alignment | why |
+|---|---|---|
+| trot, zoomies, dig, sniff | `nose` — muzzle + ear line | her head holds still, legs do the moving; frame heights vary 5 px so pinning her feet makes her pogo |
+| sleep, drowsy, alert, ask, wag | `ground` — ground line + head centre | all ground-contact poses; head centre because a sweeping tail would otherwise drag her sideways |
+| yawn | `ground-front` — ground line + front end | in a downward-dog her raised *rump* is the top of the sprite, so "top rows are her head" is false |
+
+## One motion at a time
+
+At 21 pt, two simultaneous motions read as noise. The wag originally asked for a sweeping tail **and**
+a body bouncing 3–4 px, and no amount of frame-rate tuning fixed it — the body region was changing
+~48% every frame. When prompting a new clip, pick the single thing that moves and explicitly lock
+everything else: *"every pixel of her except X is identical between frames."*
+
+Final frame rates after review: trot 6.5, dig 6.5, sniff 7, zoomies 9.5, wag 4, ask 3.5, sleep 3,
+drowsy 2.5, yawn 2.2, alert 1.4. Every one of the fast clips was slowed from its first guess.
+
 ## Known rough edges
 
 1. **Icon is 21 pt tall, upstream's other styles are 18 pt.** Her tallest pose is 42 logical px, and
    18 pt would mean a 0.86x non-integer downscale that smears the pixel art. Crisp-but-taller was the
    deliberate trade. If it looks wrong beside the crab, options are: crop 2 px off the three sitting
    poses to reach 20 pt, or accept the blur.
-2. **Alignment changes between clip families.** Locomotion is nose-aligned, idle is centroid-aligned,
-   so her feet can shift when the state changes. Visible in the preview viewer.
+2. ~~Alignment changes between clip families.~~ **FIXED.** All ground-contact clips now share one
+   ground line, so her feet no longer shift when the state changes.
 3. **The curled sleep pose is nearly a solid blob in System mode** — her bib is hidden underneath, so
    there is no internal detail to punch out. The ZZZ is what makes it read.
 4. **`drowsy` is a 2-frame blink** because the generated half-lidded frame was a duplicate. Fine at

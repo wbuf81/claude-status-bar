@@ -139,6 +139,28 @@ She is symmetrical enough that horizontal mirroring is invisible, and it solved 
 Do NOT mirror a side view expecting a new pose (it just turns her around), and do NOT rely on mirroring
 to fix a front view's direction (there isn't one).
 
+**CORRECTION, after review: mirroring a front view to manufacture a pose is fine for a STILL and wrong
+for an ANIMATION.** She measures **31.6% different from her own mirror** — her blaze, eyebrows and
+paws are not truly symmetrical. In the wag, alternating between a frame and its mirror swung her whole
+body rather than just her tail (33.6% change in the central body region, where only the tail should
+move). It looked right in a contact sheet and read as a twitch in motion. The wag now uses only real
+frames in a pendulum: down, up, down, up-with-a-bark. Direction-fixing by mirroring (the yawn) is
+still fine, because every frame is flipped equally and nothing alternates.
+
+## ONE MOTION AT A TIME
+
+At menu-bar size two simultaneous motions read as noise, not as life. The original wag prompt asked
+for a sweeping tail **and** a body bouncing 3–4 px; no frame-rate tuning could rescue it, because the
+body region was changing ~48% between frames. When writing a new clip, choose the single thing that
+moves and lock everything else explicitly:
+
+> Only her tail moves. Her head, ears, face, chest, front legs, paws, haunches and body must be drawn
+> in EXACTLY the same position, at exactly the same size, at exactly the same height, in all four
+> frames. Every pixel of her except her tail is identical between frames.
+
+The measurement that catches this: diff the **central body region** alone, not the whole frame. If
+only the tail is meant to move, that number should be near zero.
+
 ### Per-animation post-processing notes
 
 - **Sleeping (`6.png`)** — the Z is a separate blob from the dog; align on the dog and carry the Z.
