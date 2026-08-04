@@ -160,11 +160,13 @@ final class PreviewView: NSView {
 
         var x = LABEL_W
 
+        // Clip widths differ (each clip is trimmed to its own content), so the rect is derived from
+        // the image's own aspect. Forcing every clip into one width would stretch the narrow ones.
         // zoomed colour
         if let img = anim.image(frame: idx, colour: .orange, pointHeight: CGFloat(daisyCanvas.h)) {
-            let r = NSRect(x: x, y: y, width: canvasW, height: canvasH)
+            let r = NSRect(x: x, y: y, width: img.size.width * ZOOM, height: canvasH)
             NSColor(white: 0.22, alpha: 1).setFill()
-            r.fill()
+            NSRect(x: x, y: y, width: canvasW, height: canvasH).fill()
             img.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1)
             if showGrid { drawGrid(in: r) }
         }
@@ -172,9 +174,9 @@ final class PreviewView: NSView {
 
         // zoomed template, rendered onto mid grey so the punch-outs are visible
         if let img = anim.image(frame: idx, colour: nil, pointHeight: CGFloat(daisyCanvas.h)) {
-            let r = NSRect(x: x, y: y, width: canvasW, height: canvasH)
+            let r = NSRect(x: x, y: y, width: img.size.width * ZOOM, height: canvasH)
             NSColor(white: 0.55, alpha: 1).setFill()
-            r.fill()
+            NSRect(x: x, y: y, width: canvasW, height: canvasH).fill()
             NSColor.black.set()
             img.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1)
             if showGrid { drawGrid(in: r) }

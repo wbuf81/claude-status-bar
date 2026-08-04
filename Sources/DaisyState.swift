@@ -72,8 +72,25 @@ final class DaisyDriver {
     var frameCount: Int { current?.frameCount ?? 1 }
     var frameIndex: Int { current?.frameIndex(forTick: tick) ?? 0 }
 
+    /// Icon height in points.
+    ///
+    /// Defaults to the generated `daisyPointHeight`, which puts one logical pixel on one device pixel
+    /// on a 2x display so the sprite is never resampled. Overridable for experimentation:
+    ///
+    ///     defaults write com.local.claudestatusbar daisyHeight 26   # then relaunch the app
+    ///     defaults delete com.local.claudestatusbar daisyHeight     # back to the crisp default
+    ///
+    /// Any other value rescales the art and softens it, so this is a tuning aid rather than a
+    /// setting worth shipping. Note that her SHORT poses look small because the shared canvas is
+    /// sized for her tallest pose (sitting, 42 px) - a lying pose only fills ~30 of those rows, so
+    /// raising this raises everything and the sitting poses are what will hit the menu bar ceiling.
+    static let pointHeight: CGFloat = {
+        let override = UserDefaults.standard.double(forKey: "daisyHeight")
+        return override > 0 ? CGFloat(override) : daisyPointHeight
+    }()
+
     func image(colour: NSColor?) -> NSImage? {
-        current?.image(frame: frameIndex, colour: colour, pointHeight: daisyPointHeight)
+        current?.image(frame: frameIndex, colour: colour, pointHeight: DaisyDriver.pointHeight)
     }
 
     // MARK: - Tool mapping

@@ -42,6 +42,20 @@ NATIVE = 100          # logical canvas the generator actually drew on
 PALETTE_SIZE = 16     # NOT 8 - the art uses load-bearing anti-aliasing tones
 PAD = 0               # no slack: every logical px of canvas height costs menu-bar height
 
+# Per-clip enlargement, to stop her SHORT poses looking undersized in the menu bar.
+#
+# The canvas is sized by her tallest pose (sitting, 42 px). A lying pose is only ~30 px, so at one
+# logical pixel per device pixel it renders about 15 pt of dog inside a 21 pt slot while neighbouring
+# menu bar icons show ~18 pt. Short clips are therefore scaled up toward the canvas height.
+#
+# This RESAMPLES, and there is no way around that: the menu bar affords 44 device px, so a 30 px
+# sprite has no integer scale between 1x (15 pt) and 2x (30 pt, far over the bar). NEAREST is used
+# rather than a smooth filter - it leaves some pixels 1 device px and some 2, which reads better on
+# pixel art than uniform blur.
+#
+# Set to 1.0 to disable entirely and go back to strictly crisp, physically-consistent scaling.
+MAX_UPSCALE = 1.15
+
 # align: "nose"   - pin the muzzle (rightmost px) and ears (topmost px); for locomotion
 #        "ground" - pin her ground line and head centre; for lying and sitting poses
 #        "ground-front" - ground line + front end; for the stretch, whose raised rump
@@ -73,19 +87,22 @@ ANIMATIONS = {
         order=[0, 1, 2, 3],
     ),
     "dig": dict(
-        file="04-dig.png", grid=(2, 2), align="nose", fps=6.5,
+        file="04-dig.png", grid=(2, 2), align="nose", fps=4.5,
         order=[0, 1, 2, 3], intro=1,
         note="f1 has no dirt at all, so it flickers if looped. Plays once as a wind-up.",
     ),
     "sniff": dict(
-        file="05-sniff.png", grid=(2, 2), align="nose", fps=7.0,
+        file="05-sniff.png", grid=(2, 2), align="nose", fps=4.5,
         order=[0, 1, 2, 3],
     ),
     "zoomies": dict(
         file="06-zoomies.png", grid=(2, 2), align="nose", fps=9.5,
         order=[0, 1, 2, 3],
-        note="Pale speed puffs arrive as separate blobs; DaisyRender inks them instead of "
-             "punching them out, else they vanish in System mode.",
+        note="Regenerated after review: the first sheet had no compression phase - all four frames "
+             "were extended sprint poses, so her front legs never folded under her and she looked "
+             "like she was floating rather than running. This one has a real tuck (f3 is 36 px long "
+             "against 43 at full extension). Dust is DARK by request (luminance ~65) so it inks "
+             "natively in System mode instead of relying on the particle mask.",
     ),
     "ask": dict(
         file="07-ask.png", grid=(2, 2), align="ground", fps=3.5,
@@ -361,6 +378,59 @@ def clip_offset(extents, canvas) -> tuple[int, int]:
     return ox, oy
 
 
+def upscale_clips(placed: dict, canvas) -> tuple[dict, tuple[int, int]]:
+    """Enlarge each clip toward the canvas height, capped by MAX_UPSCALE. See that constant.
+
+    Scaling is per CLIP, never per frame - a per-frame factor would make her pulse in size. The
+    clip's content is cropped, scaled with NEAREST, then re-seated bottom-aligned and horizontally
+    centred, so every clip keeps its shared ground line and her feet do not jump between states.
+    """
+    cw, ch = canvas
+    if MAX_UPSCALE <= 1.0:
+        return placed, canvas
+
+    # measure each clip's content and pick its factor
+    factors, boxes = {}, {}
+    for name, (spec, seq) in placed.items():
+        x0 = y0 = 10 ** 9
+        x1 = y1 = -1
+        for img, _ in seq:
+            bb = img.getchannel("A").getbbox()
+            if not bb:
+                continue
+            x0, y0 = min(x0, bb[0]), min(y0, bb[1])
+            x1, y1 = max(x1, bb[2]), max(y1, bb[3])
+        boxes[name] = (x0, y0, x1, y1)
+        content_h = y1 - y0
+        factors[name] = min(MAX_UPSCALE, ch / content_h) if content_h else 1.0
+
+    # Each clip keeps the SHARED HEIGHT - that is what preserves the common ground line - but gets
+    # its own tight WIDTH. The status item is variable-length and DaisyRender derives width from the
+    # image's own aspect, so a shared width would only pad every clip out to the widest one.
+    out = {}
+    max_w = 0
+    for name, (spec, seq) in placed.items():
+        x0, y0, x1, y1 = boxes[name]
+        f = factors[name]
+        sw = max(1, int(round((x1 - x0) * f)))
+        sh = max(1, min(ch - PAD * 2, int(round((y1 - y0) * f))))
+        clip_canvas = (sw, ch)
+        max_w = max(max_w, sw)
+        frames = []
+        for img, mask in seq:
+            crop_i = img.crop((x0, y0, x1, y1)).resize((sw, sh), Image.NEAREST)
+            crop_m = mask.crop((x0, y0, x1, y1)).resize((sw, sh), Image.NEAREST)
+            big_i = Image.new("RGBA", clip_canvas, (0, 0, 0, 0))
+            big_m = Image.new("L", clip_canvas, 0)
+            oy = ch - PAD - sh                     # bottom-aligned: shared ground line
+            big_i.paste(crop_i, (0, oy), crop_i)
+            big_m.paste(crop_m, (0, oy))
+            frames.append((big_i, big_m))
+        out[name] = (spec, frames)
+        print(f"  {name:8s} content {x1-x0}x{y1-y0} -> {sw}x{sh} in a {sw}x{ch} frame  (x{f:.3f})")
+    return out, (max_w, ch)
+
+
 def place(frame: Frame, canvas, align: str, offset: tuple[int, int]):
     """Render one frame onto the shared canvas. Returns (RGBA image, particle mask, clipped count)."""
     cw, ch = canvas
@@ -558,6 +628,12 @@ def main() -> int:
         placed[name] = (spec, out)
     if total_clipped:
         print(f"WARNING: {total_clipped} pixels clipped off the canvas")
+
+    if MAX_UPSCALE > 1.0:
+        print(f"\nper-clip enlargement (cap x{MAX_UPSCALE}):")
+        placed, canvas = upscale_clips(placed, canvas)
+        print(f"canvas after enlargement: {canvas[0]}x{canvas[1]} "
+              f"-> {canvas[0]/2:.1f}x{canvas[1]/2:.1f} pt")
 
     palette = build_palette([im for _, seq in placed.values() for im, _ in seq])
     print(f"shared palette ({len(palette)}): {palette}")
