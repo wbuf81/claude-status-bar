@@ -109,14 +109,17 @@ ANIMATIONS = {
         order=[0, 1, 2, 3],
     ),
     "wag": dict(
-        file="08-wag.png", grid=(2, 2), align="ground", fps=4.0,
-        order=[0, 1, 0, 3],
-        note="Generated f3 had TWO TAILS and is discarded. Mirroring f1 to fake a tail-sweeps-right "
-             "pose was tried and REJECTED: she measures 31.6% different from her own mirror, so the "
-             "flip swung her whole body, not just her tail (33.6% change in the central body region "
-             "where only the tail should move). Reads fine as a still, reads as a twitch in motion. "
-             "Instead this is a pendulum on real frames only - down, up, down, up-with-a-bark - "
-             "passing through rest twice per cycle, which is how a wag actually works.",
+        file="08-wag.png", grid=(2, 2), align="ground", fps=6.0,
+        order=[0, 1, 2, 3],
+        note="Regenerated with her body explicitly locked. The first sheet asked for a sweeping tail "
+             "AND a body bouncing 3-4 px, which at 21 pt read as noise: the central body region was "
+             "changing ~48% per frame. It is now 9.8%, essentially just the mouth. That earlier sheet "
+             "also gave frame 3 two tails, which prompted faking the opposite side by mirroring f1 - "
+             "REJECTED, because she measures 31.6% different from her own mirror, so the flip swung "
+             "her whole body rather than her tail. Fine as a still, a twitch in motion. This sheet "
+             "keeps the tail on one side and flicks it low/up/low/up-with-a-bark; with the body still, "
+             "that reads cleanly, and the frame rate went back from 4 to 6 fps once the bounce was "
+             "gone.",
     ),
     "yawn": dict(
         file="09-yawn.png", grid=(2, 2), align="ground-front", fps=2.2,

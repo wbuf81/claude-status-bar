@@ -1,9 +1,17 @@
 > ### 🐶 This is a fork: **Daisy Status Bar**
 >
-> Adds a Bernese Mountain Dog as a fourth animation style, reacting to what Claude Code is actually
-> doing. See **[DAISY.md](DAISY.md)** for the animations, the state map, and how the art was made.
+> Adds a Bernese Mountain Dog as a fourth animation style. She reacts to what Claude Code is actually
+> doing — dozing when idle, digging when editing, tearing about when a command runs, and sitting with
+> a paw up when Claude needs your permission.
 >
-> ![Daisy](art/showcase/all-clips.png)
+> | | | | | |
+> |:---:|:---:|:---:|:---:|:---:|
+> | <img src="art/showcase/trot.gif" width="150"> | <img src="art/showcase/zoomies.gif" width="150"> | <img src="art/showcase/dig.gif" width="150"> | <img src="art/showcase/sniff.gif" width="150"> | <img src="art/showcase/ask.gif" width="150"> |
+> | **thinking** | **running a command** | **editing a file** | **reading / searching** | **awaiting permission** |
+> | <img src="art/showcase/wag.gif" width="150"> | <img src="art/showcase/drowsy.gif" width="150"> | <img src="art/showcase/sleep.gif" width="150"> | <img src="art/showcase/yawn.gif" width="150"> | <img src="art/showcase/alert.gif" width="150"> |
+> | **turn complete** | **idle** | **idle 2 min+** | **stretching** | **ears up** |
+>
+> Full details, the state map, and how the art was made: **[DAISY.md](DAISY.md)**
 >
 > Everything below is the upstream README from
 > [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar), unchanged.
