@@ -1,5 +1,14 @@
+> ### 🐶 This is a fork: **Daisy Status Bar**
+>
+> Adds a Bernese Mountain Dog as a fourth animation style, reacting to what Claude Code is actually
+> doing. See **[DAISY.md](DAISY.md)** for the animations, the state map, and how the art was made.
+>
+> ![Daisy](art/showcase/all-clips.png)
+>
+> Everything below is the upstream README from
+> [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar), unchanged.
 
-
+---
 A tiny macOS menu bar app that shows **Claude Code's live status**: an animated Claude icon while it's thinking or running a tool, a yellow dot when it's awaiting your permission, and the elapsed time of the current turn. Lightweight, no window, no dock icon, no usage dashboards.
 
 Built so you can tab away during a long "thinking" stretch and still see, at a glance, whether Claude is working, waiting on you, or done.

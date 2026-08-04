@@ -319,8 +319,31 @@ a body bouncing 3–4 px, and no amount of frame-rate tuning fixed it — the bo
 ~48% every frame. When prompting a new clip, pick the single thing that moves and explicitly lock
 everything else: *"every pixel of her except X is identical between frames."*
 
-Final frame rates after review: trot 6.5, dig 6.5, sniff 7, zoomies 9.5, wag 4, ask 3.5, sleep 3,
-drowsy 2.5, yawn 2.2, alert 1.4. Every one of the fast clips was slowed from its first guess.
+Final frame rates after menu-bar review: **trot 6.5** (called "perfect" and left alone), zoomies 9.5,
+**dig 4.5**, **sniff 4.5**, wag 4, ask 3.5, sleep 3, drowsy 2.5, yawn 2.2, alert 1.4. Every clip was
+slowed from its first guess, most of them twice — first guesses were consistently too fast.
+
+## Sizing: she is already at the ceiling
+
+Measured, not assumed: `NSStatusBar.system.thickness` is **22 pt**. Crisp rendering needs one logical
+pixel per device pixel (0.5 pt/px), which caps the sprite at 44 device px; her tallest pose is 42. So
+she cannot be made meaningfully larger and stay crisp.
+
+"She looks small" came from the canvas being sized by her tallest pose. Sitting is 42 px, lying is
+~30 px, so an idle pose rendered ~15 pt of dog in a 21 pt slot while neighbouring icons show ~18 pt.
+
+The fix is `MAX_UPSCALE` in `tools/make_frames.py` (currently **1.15**): short clips are scaled up
+toward the canvas height, tall ones left alone. This RESAMPLES and cannot avoid it — a 30 px sprite
+has no integer scale between 1x (15 pt) and 2x (30 pt, far over the bar). NEAREST is used rather than
+a smooth filter, leaving some pixels 1 device px and some 2, which reads better on pixel art than
+uniform blur. Set to 1.0 to revert to strictly crisp, physically-consistent scaling.
+
+Scaling is per CLIP, never per frame (per-frame would make her pulse). Clips keep a **shared height**,
+which is what preserves the common ground line, and get their **own width**, since the status item is
+variable-length and a shared width would pad every clip out to the widest.
+
+For quick experiments without regenerating: `defaults write com.local.claudestatusbar daisyHeight 24`
+then relaunch; `defaults delete …` to revert.
 
 ## Known rough edges
 
