@@ -50,16 +50,29 @@ final class PreviewView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    /// Frames a finished one-shot is held on before the preview replays it.
+    ///
+    /// Keep this small. At 6 it made `alert` - two frames at 1.4 fps - dwell on its final frame for
+    /// about five seconds against 0.7 s on the first, so the ear-perk looked like a static image.
+    private static let replayHold = 2
+
     private func step() {
         guard !paused else { return }
         let now = Date().timeIntervalSince1970
         var dirty = false
         for i in rows.indices {
-            let interval = 1.0 / rows[i].anim.fps
-            let last = lastStep[rows[i].anim.name] ?? 0
+            let anim = rows[i].anim
+            let interval = 1.0 / anim.fps
+            let last = lastStep[anim.name] ?? 0
             if now - last >= interval {
-                lastStep[rows[i].anim.name] = now
+                lastStep[anim.name] = now
                 rows[i].tick += 1
+                // A one-shot holds its final frame forever, which in a preview just looks like a
+                // static image - it's why `alert` and `yawn` appeared to have no movement at all.
+                // In the app the driver hands back to an idle clip instead; here, replay it.
+                if !anim.loops, rows[i].tick >= anim.frameCount + PreviewView.replayHold {
+                    rows[i].tick = 0
+                }
                 dirty = true
             }
         }
