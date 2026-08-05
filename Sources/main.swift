@@ -465,37 +465,36 @@ final class StatusController: NSObject, NSMenuDelegate {
         pollTimer = t
         tick()
         try? FileManager.default.removeItem(atPath: (NSHomeDirectory() as NSString).appendingPathComponent(".claude/statusbar/quit-intent"))
-        removeOldNamedBundle()
         ensureHooksInstalled()
         checkForUpdate()
     }
 
-    // 0.4.0 rename transition ("ClaudeStatusBar.app" to "Claude Status Bar.app"): Finder won't
-    // replace across different filenames, so a manual DMG update leaves the old-named copy behind;
-    // remove it on launch. Guarded by bundle id so a fork or unrelated app at that path is never
-    // touched, and skipped when running FROM that path (old-named dev builds).
-    func removeOldNamedBundle() {
-        let old = "/Applications/ClaudeStatusBar.app"
-        guard Bundle.main.bundlePath != old,
-              let info = NSDictionary(contentsOfFile: old + "/Contents/Info.plist"),
-              info["CFBundleIdentifier"] as? String == "com.local.claudestatusbar" else { return }
-        for app in NSWorkspace.shared.runningApplications
-            where app.bundleURL?.path == old && app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
-            app.forceTerminate()
-        }
-        try? FileManager.default.removeItem(atPath: old)
-    }
+    // Upstream's removeOldNamedBundle() lived here: it deleted /Applications/DaisyStatusBar.app on
+    // launch, to clean up after upstream's own 0.4.0 bundle rename. Deliberately NOT carried over.
+    // Daisy has never had a previous bundle name to clean up, and the behaviour is precisely what
+    // would make her eat a neighbouring install — the opposite of coexisting with upstream, which
+    // is the whole point of her separate bundle id. See DAISY-DISTRIBUTION.md.
 
     // Re-runs on first install AND on every version change, so upgrades pick up hook
     // changes and retire old artifacts.
+    //
+    // ALSO re-runs when the recorded app-path does not name this bundle. Version alone is not
+    // enough once the same version can live in two places: install 0.1.0 via brew when a 0.1.0 dev
+    // build already ran, and `installedVersion` matches, so the installer is skipped — leaving the
+    // hooks pointing at the old bundle and no app-path for the Cellar copy, which is exactly the
+    // case lifecycle.js needs the file for. Cheap to check, and it makes "move the app" self-heal.
     func ensureHooksInstalled() {
         let d = UserDefaults.standard
         let current = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
-        guard d.string(forKey: "installedVersion") != current,
+        let recorded = try? String(contentsOfFile: NSHomeDirectory()
+            + "/.claude/daisy-statusbar/app-path", encoding: .utf8)
+        let pathMatches = recorded?.trimmingCharacters(in: .whitespacesAndNewlines)
+            == Bundle.main.bundlePath
+        guard d.string(forKey: "installedVersion") != current || !pathMatches,
               let installer = Bundle.main.path(forResource: "install", ofType: "js") else { return }
         DispatchQueue.global().async {
             guard let node = Self.locateNode() else {
-                NSLog("ClaudeStatusBar: could not find node; hooks not installed (will retry next launch)")
+                NSLog("DaisyStatusBar: could not find node; hooks not installed (will retry next launch)")
                 return
             }
             let task = Process()
@@ -545,19 +544,19 @@ final class StatusController: NSObject, NSMenuDelegate {
     // MARK: update check
 
     var currentVersion: String { (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0" }
-    let releaseAPIURL = "https://api.github.com/repos/m1ckc3s/claude-status-bar/releases/latest"
-    let releasePageURL = "https://github.com/m1ckc3s/claude-status-bar/releases/latest"
-    // Homebrew: the cask lags a GitHub release by up to ~a day (autobump), so brew-managed
-    // installs gate "update available" on the CASK version, so the copy command always works
-    // when offered. Public JSON, nothing sent anywhere (same privacy story as the GitHub check).
-    let brewCaskAPIURL = "https://formulae.brew.sh/api/cask/claude-status-bar.json"
-    let brewUpgradeCommand = "brew upgrade --cask claude-status-bar"
-    // The trailing `open` matters: brew only copies the app, and the first launch of the new copy
-    // is what installs hooks and removes the old-named bundle (0.4.0 rename transition).
-    let brewInstallCommand = "brew install --cask claude-status-bar && open -a \"Claude Status Bar\""
+    // OURS, not upstream's. Pointing these at m1ckc3s would have every Daisy user compared against
+    // upstream's tags and told to go install a different app.
+    let releaseAPIURL = "https://api.github.com/repos/wbuf81/daisy-claude-status-bar/releases/latest"
+    let releasePageURL = "https://github.com/wbuf81/daisy-claude-status-bar/releases/latest"
+    // Daisy ships as a FORMULA in our own tap, so she lands in the Cellar, not the Caskroom.
+    let brewUpgradeCommand = "brew upgrade wbuf81/daisy/daisy-status-bar"
+    // The trailing `open` matters: brew only builds and installs the app, and the first launch is
+    // what installs the Claude Code hooks.
+    let brewInstallCommand =
+        "brew install wbuf81/daisy/daisy-status-bar && open -a \"Daisy Status Bar\""
     var brewManaged: Bool {
-        FileManager.default.fileExists(atPath: "/opt/homebrew/Caskroom/claude-status-bar")
-            || FileManager.default.fileExists(atPath: "/usr/local/Caskroom/claude-status-bar")
+        FileManager.default.fileExists(atPath: "/opt/homebrew/Cellar/daisy-status-bar")
+            || FileManager.default.fileExists(atPath: "/usr/local/Cellar/daisy-status-bar")
     }
 
     // Once/day: cache GitHub's latest release tag in UserDefaults. Nothing sent to us.
@@ -567,7 +566,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         if now - d.double(forKey: "lastUpdateCheck") < 86400 { return }
         guard let url = URL(string: releaseAPIURL) else { return }
         var req = URLRequest(url: url)
-        req.setValue("ClaudeStatusBar", forHTTPHeaderField: "User-Agent") // GitHub API requires a UA
+        req.setValue("DaisyStatusBar", forHTTPHeaderField: "User-Agent") // GitHub API requires a UA
         URLSession.shared.dataTask(with: req) { data, _, _ in
             guard let data = data,
                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -576,13 +575,11 @@ final class StatusController: NSObject, NSMenuDelegate {
             UserDefaults.standard.set(ver, forKey: "latestVersion")
             UserDefaults.standard.set(now, forKey: "lastUpdateCheck")
         }.resume()
-        guard let brewURL = URL(string: brewCaskAPIURL) else { return }
-        URLSession.shared.dataTask(with: URLRequest(url: brewURL)) { data, _, _ in
-            guard let data = data,
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let ver = obj["version"] as? String else { return }
-            UserDefaults.standard.set(ver, forKey: "brewCaskVersion")
-        }.resume()
+        // Upstream also queried formulae.brew.sh here, to avoid offering `brew upgrade` before the
+        // cask's autobump bot had caught up. Dropped: that API only serves official homebrew-core
+        // and homebrew-cask, so it has nothing to say about a personal tap. The equivalent lag is
+        // ours to prevent instead — bump the tap's formula BEFORE publishing the GitHub release,
+        // and a visible release always means brew can already deliver it.
     }
 
     // Numeric component-wise compare so "0.0.10" > "0.0.9".
@@ -733,16 +730,14 @@ final class StatusController: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem(title: "Version \(currentVersion)", action: nil, keyEquivalent: ""))
         if let latest = UserDefaults.standard.string(forKey: "latestVersion"), versionIsNewer(latest, than: currentVersion) {
             let width = CGFloat(uiConfig()["boxWidth"] ?? 300)
-            let brewVer = UserDefaults.standard.string(forKey: "brewCaskVersion")
             if brewManaged {
-                // Silent until the cask catches up (autobump lag): never offer a command that
-                // would report "already up to date".
-                if let bv = brewVer, versionIsNewer(bv, than: currentVersion) {
-                    let title = "Update to \(bv) via brew"
-                    let it = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-                    it.view = CopyRowView(title: title, command: brewUpgradeCommand, width: width)
-                    menu.addItem(it)
-                }
+                // No lag guard needed, unlike upstream: our tap has no autobump bot, and the
+                // release process bumps the formula before publishing the release, so a visible
+                // release is always one brew can already deliver.
+                let title = "Update to \(latest) via brew"
+                let it = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                it.view = CopyRowView(title: title, command: brewUpgradeCommand, width: width)
+                menu.addItem(it)
             } else {
                 let up = NSMenuItem(title: "Update to \(latest)", action: #selector(openLatestRelease), keyEquivalent: "")
                 up.target = self

@@ -77,8 +77,8 @@ final class DaisyDriver {
     /// Defaults to the generated `daisyPointHeight`, which puts one logical pixel on one device pixel
     /// on a 2x display so the sprite is never resampled. Overridable for experimentation:
     ///
-    ///     defaults write com.local.claudestatusbar daisyHeight 26   # then relaunch the app
-    ///     defaults delete com.local.claudestatusbar daisyHeight     # back to the crisp default
+    ///     defaults write com.wbuf81.daisystatusbar daisyHeight 26   # then relaunch the app
+    ///     defaults delete com.wbuf81.daisystatusbar daisyHeight     # back to the crisp default
     ///
     /// Any other value rescales the art and softens it, so this is a tuning aid rather than a
     /// setting worth shipping. Note that her SHORT poses look small because the shared canvas is

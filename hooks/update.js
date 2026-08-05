@@ -7,7 +7,7 @@ const os = require("os");
 const path = require("path");
 const cp = require("child_process");
 
-const dir = path.join(os.homedir(), ".claude", "statusbar");
+const dir = path.join(os.homedir(), ".claude", "daisy-statusbar");
 const stateDir = path.join(dir, "state.d");
 // Written by the app's Quit menu item; suppresses the relaunch below so Quit sticks.
 // lifecycle.js removes it on the next SessionStart (a new session = fresh consent).
@@ -109,9 +109,9 @@ process.stdin.on("end", () => {
   // other opener) and an app killed/crashed mid-session. Skipped after an explicit menu Quit.
   try {
     if (!fs.existsSync(quitMarker)) {
-      cp.execSync("pgrep -x ClaudeStatusBar", { stdio: "ignore" });
+      cp.execSync("pgrep -x DaisyStatusBar", { stdio: "ignore" });
     }
   } catch {
-    try { cp.spawn("open", ["-g", "-b", "com.local.claudestatusbar"], { stdio: "ignore", detached: true }).unref(); } catch {}
+    try { cp.spawn("open", ["-g", "-b", "com.wbuf81.daisystatusbar"], { stdio: "ignore", detached: true }).unref(); } catch {}
   }
 });

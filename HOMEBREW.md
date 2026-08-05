@@ -1,5 +1,18 @@
 # Claude Status Bar + Homebrew
 
+> [!WARNING]
+> **This page is UPSTREAM's Homebrew story, not Daisy's.** It documents m1ckc3s's
+> `claude-status-bar` cask, and is kept because we merge from `upstream`. Every command on this page
+> installs or upgrades upstream's app, which has no Daisy in it.
+>
+> Daisy ships as a **formula in her own tap**, built from source:
+>
+> ```bash
+> brew install wbuf81/daisy/daisy-status-bar && open -a "Daisy Status Bar"
+> ```
+>
+> Why a formula rather than a cask, and how releases work: **[DAISY-DISTRIBUTION.md](DAISY-DISTRIBUTION.md)**.
+
 Claude Status Bar is on Homebrew. This page is the full story: how to install, how updates work, and everything about the one-time transition in v0.4.0. If something brew-related looks broken, the answer is almost certainly below.
 
 ## New users

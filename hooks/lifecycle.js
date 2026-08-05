@@ -6,15 +6,32 @@ const os = require("os");
 const path = require("path");
 const cp = require("child_process");
 
-const BUNDLE_ID = "com.local.claudestatusbar";
-const EXEC = "ClaudeStatusBar";
-const dir = path.join(os.homedir(), ".claude", "statusbar");
+const BUNDLE_ID = "com.wbuf81.daisystatusbar";
+const EXEC = "DaisyStatusBar";
+const dir = path.join(os.homedir(), ".claude", "daisy-statusbar");
 const stateDir = path.join(dir, "state.d");
 const event = process.argv[2];
 
 fs.mkdirSync(stateDir, { recursive: true });
 
 const running = () => { try { cp.execSync(`pgrep -x ${EXEC}`, { stdio: "ignore" }); return true; } catch { return false; } };
+
+// Prefer the concrete bundle path install.js recorded; fall back to the bundle id.
+//
+// `open -b <id>` only works once LaunchServices has registered the bundle. That is dependable for
+// /Applications, but Daisy also lives in a Homebrew Cellar prefix, which LaunchServices does not
+// scan — so on a brew install the id lookup can fail and she would never launch. The recorded path
+// has no such dependency. The id remains the fallback for installs predating the app-path file.
+const launchApp = () => {
+  try {
+    const recorded = fs.readFileSync(path.join(dir, "app-path"), "utf8").trim();
+    if (recorded && fs.existsSync(recorded)) {
+      cp.spawn("open", ["-g", recorded], { stdio: "ignore", detached: true }).unref();
+      return;
+    }
+  } catch {}
+  cp.spawn("open", ["-g", "-b", BUNDLE_ID], { stdio: "ignore", detached: true }).unref();
+};
 const safeId = (s) => String(s || "").replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 64) || "unknown";
 
 const writeAtomic = (file, obj) => {
@@ -49,7 +66,7 @@ function run() {
       // the dropdown until it has real activity (update.js flips started:true on a prompt/tool).
       writeAtomic(statePath, { state: "idle", label: "", tool: "", project: cwd ? path.basename(cwd) : "", cwd, sessionId: id, transcript: "", entrypoint: process.env.CLAUDE_CODE_ENTRYPOINT || "", term_program: process.env.TERM_PROGRAM || "", pid: process.ppid, started: false, startedAt: 0, ts: Math.floor(Date.now() / 1000) });
     } catch {}
-    cp.spawn("open", ["-g", "-b", BUNDLE_ID], { stdio: "ignore", detached: true }).unref();
+    launchApp();
   } else if (event === "end") {
     // Removing the file drops this session from the aggregate — this is also what recovers a
     // frozen animation on force-quit (SessionEnd fires, but no Stop). No state rewrite needed.

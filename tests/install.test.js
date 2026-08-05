@@ -57,7 +57,7 @@ test("installs portable, quoted hook commands and replaces stale hooks", (t) => 
 
   const claudeDir = path.join(home, ".claude");
   const settingsPath = path.join(claudeDir, "settings.json");
-  const oldScript = path.join(claudeDir, "statusbar", "update.js");
+  const oldScript = path.join(claudeDir, "daisy-statusbar", "update.js");
   const unrelatedCommand = "echo keep-me";
   const original = {
     customSetting: true,
@@ -81,7 +81,7 @@ test("installs portable, quoted hook commands and replaces stale hooks", (t) => 
     home,
     "Library",
     "LaunchAgents",
-    "com.local.claudestatusbar.watcher.plist",
+    "com.wbuf81.daisystatusbar.watcher.plist",
   );
   fs.mkdirSync(path.dirname(oldAgentPlist), { recursive: true });
   fs.writeFileSync(oldAgentPlist, "obsolete");
@@ -91,8 +91,8 @@ test("installs portable, quoted hook commands and replaces stale hooks", (t) => 
   const settings = readSettings(home);
   const allCommands = hookCommands(settings);
   const commands = statusBarCommands(settings);
-  const updatePath = path.join(claudeDir, "statusbar", "update.js");
-  const lifecyclePath = path.join(claudeDir, "statusbar", "lifecycle.js");
+  const updatePath = path.join(claudeDir, "daisy-statusbar", "update.js");
+  const lifecyclePath = path.join(claudeDir, "daisy-statusbar", "lifecycle.js");
 
   assert.equal(settings.customSetting, true);
   assert.equal(fs.existsSync(oldAgentPlist), false);
@@ -109,7 +109,7 @@ test("installs portable, quoted hook commands and replaces stale hooks", (t) => 
   fs.symlinkSync(process.execPath, path.join(fixtureBin, "node"));
   const statePath = path.join(
     claudeDir,
-    "statusbar",
+    "daisy-statusbar",
     "state.d",
     "quoted-path-test.json",
   );
@@ -145,7 +145,7 @@ test("installs portable, quoted hook commands and replaces stale hooks", (t) => 
     1,
   );
   assert.deepEqual(
-    JSON.parse(fs.readFileSync(`${settingsPath}.bak-statusbar`, "utf8")),
+    JSON.parse(fs.readFileSync(`${settingsPath}.bak-daisy-statusbar`, "utf8")),
     original,
   );
 
@@ -163,6 +163,62 @@ test("installs portable, quoted hook commands and replaces stale hooks", (t) => 
     ).length,
     1,
   );
+});
+
+// Daisy's whole reason for having her own bundle id and her own ~/.claude/daisy-statusbar is that
+// upstream's app can stay installed beside her. install.js decides which hooks are "ours" by plain
+// substring match on that directory, so a badly chosen name silently eats the neighbour's hooks:
+// ~/.claude/statusbar-daisy would CONTAIN ~/.claude/statusbar. This test is the guard on that.
+test("leaves an upstream claude-status-bar install completely alone", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "coexist test-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  const claudeDir = path.join(home, ".claude");
+  const settingsPath = path.join(claudeDir, "settings.json");
+  // Exactly what upstream's installer writes: its own dir, its own script names.
+  const upstreamUpdate = path.join(claudeDir, "statusbar", "update.js");
+  const upstreamLifecycle = path.join(claudeDir, "statusbar", "lifecycle.js");
+  const upstreamCommands = [
+    `${nodePathPrefix}${shellQuote(upstreamUpdate)} pre`,
+    `${nodePathPrefix}${shellQuote(upstreamLifecycle)} start`,
+  ];
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(
+    settingsPath,
+    JSON.stringify({
+      hooks: {
+        PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: upstreamCommands[0] }] }],
+        SessionStart: [{ hooks: [{ type: "command", command: upstreamCommands[1] }] }],
+      },
+    }),
+  );
+  // Upstream's LaunchAgent must survive too — deleting it is upstream's job, never ours.
+  const upstreamAgent = path.join(
+    home,
+    "Library",
+    "LaunchAgents",
+    "com.local.claudestatusbar.watcher.plist",
+  );
+  fs.mkdirSync(path.dirname(upstreamAgent), { recursive: true });
+  fs.writeFileSync(upstreamAgent, "upstream's, not ours");
+
+  runInstaller(home);
+
+  const after = hookCommands(readSettings(home));
+  for (const command of upstreamCommands) {
+    assert.equal(after.filter((c) => c === command).length, 1, `clobbered: ${command}`);
+  }
+  assert.equal(fs.existsSync(upstreamAgent), true);
+  // And Daisy's own eight are added alongside, not instead.
+  assert.equal(after.filter((c) => c.includes("daisy-statusbar")).length, 8);
+
+  // Uninstalling Daisy must likewise leave upstream's hooks in place.
+  runUninstaller(home);
+  const afterUninstall = hookCommands(readSettings(home));
+  assert.equal(afterUninstall.filter((c) => c.includes("daisy-statusbar")).length, 0);
+  for (const command of upstreamCommands) {
+    assert.equal(afterUninstall.filter((c) => c === command).length, 1, `lost: ${command}`);
+  }
 });
 
 test("reinstalling is idempotent", (t) => {

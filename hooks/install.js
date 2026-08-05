@@ -9,14 +9,20 @@ const path = require("path");
 const cp = require("child_process");
 
 const home = os.homedir();
-const sbDir = path.join(home, ".claude", "statusbar");
+// The "daisy-" PREFIX is load-bearing, not cosmetic. MARKER below decides which hooks in
+// settings.json are ours by plain substring match, and upstream's copy of this script does the
+// same with its own ~/.claude/statusbar. A prefixed name shares no substring with upstream's, so
+// the two apps leave each other's hooks alone. A SUFFIXED name (~/.claude/statusbar-daisy) would
+// contain "~/.claude/statusbar", so upstream's installer would treat Daisy's hooks as its own and
+// strip them on every launch — Daisy would silently stop animating. See DAISY-DISTRIBUTION.md.
+const sbDir = path.join(home, ".claude", "daisy-statusbar");
 const MARKER = sbDir; // every hook command we add points inside this dir
 const updateDest = path.join(sbDir, "update.js");
 const lifecycleDest = path.join(sbDir, "lifecycle.js");
 const settingsPath = path.join(home, ".claude", "settings.json");
 
 // Retire the old 0.0.2 background watcher LaunchAgent on upgrade (0.0.3+ self-quits).
-const OLD_AGENT_LABEL = "com.local.claudestatusbar.watcher";
+const OLD_AGENT_LABEL = "com.wbuf81.daisystatusbar.watcher";
 const oldAgentPlist = path.join(home, "Library", "LaunchAgents", OLD_AGENT_LABEL + ".plist");
 try { cp.execSync(`launchctl bootout gui/${process.getuid()}/${OLD_AGENT_LABEL}`, { stdio: "ignore" }); } catch {}
 if (fs.existsSync(oldAgentPlist)) { fs.rmSync(oldAgentPlist); console.log("Removed old desktop watcher LaunchAgent."); }
@@ -28,6 +34,17 @@ fs.rmSync(path.join(sbDir, "state.json"), { force: true });
 fs.rmSync(path.join(sbDir, "sessions.d"), { recursive: true, force: true });
 fs.copyFileSync(path.join(__dirname, "update.js"), updateDest);
 fs.copyFileSync(path.join(__dirname, "lifecycle.js"), lifecycleDest);
+
+// Record where the app bundle actually is, so lifecycle.js can launch it by PATH instead of by
+// bundle id. `open -b <id>` needs LaunchServices to have registered the bundle, which it does for
+// /Applications but NOT reliably for a Homebrew formula's Cellar prefix — Daisy would install fine
+// and then simply never launch herself. Written only when we are running from inside the bundle
+// (Contents/Resources/install.js); a run straight from the repo checkout leaves it alone.
+if (path.basename(__dirname) === "Resources" &&
+    path.basename(path.dirname(__dirname)) === "Contents") {
+  const appPath = path.resolve(__dirname, "..", "..");
+  fs.writeFileSync(path.join(sbDir, "app-path"), appPath + "\n");
+}
 
 const shellQuote = (value) => `'${value.replace(/'/g, `'\\''`)}'`;
 const quotedMarkerPrefix = shellQuote(MARKER).slice(0, -1);
@@ -41,7 +58,7 @@ const life = (evt) =>
 let settings = {};
 if (fs.existsSync(settingsPath)) {
   settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-  const bak = settingsPath + ".bak-statusbar";
+  const bak = settingsPath + ".bak-daisy-statusbar";
   if (!fs.existsSync(bak)) fs.copyFileSync(settingsPath, bak);
 }
 settings.hooks = settings.hooks || {};
@@ -77,4 +94,4 @@ addUnmatched("SessionEnd", life("end"));
 fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
 console.log("Installed status-bar hooks into", settingsPath);
 console.log("Scripts:", updateDest, "and", lifecycleDest);
-console.log("Backup (first run only):", settingsPath + ".bak-statusbar");
+console.log("Backup (first run only):", settingsPath + ".bak-daisy-statusbar");
