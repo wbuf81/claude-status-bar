@@ -3,9 +3,19 @@
 Plan of record for making `wbuf81/daisy-claude-status-bar` installable by someone who is not us.
 Written 2026-08-05.
 
-**Status: §1 §2 §3 §6 done. §4 (tag a release) and §5 (create the tap) are the remaining steps.**
-Verified on 2026-08-05: Daisy and upstream's app run side by side in the same menu bar, with all
-16 hooks (8 each) coexisting in one real `~/.claude/settings.json`, neither stripping the other.
+**Status: SHIPPED 2026-08-05.** `brew install wbuf81/daisy/daisy-status-bar` works end to end —
+verified by installing it from the tap on a machine that already had upstream's app, in 1m20s.
+Daisy and upstream then ran side by side in the same menu bar, with all 16 hooks (8 each)
+coexisting in one real `~/.claude/settings.json`, neither stripping the other.
+
+Everything below is why it is built this way. For the repeatable steps, see **Cutting a release**
+at the bottom.
+
+Two things went differently from the plan as written, both recorded in place below:
+- Daisy's tags are `daisy-vX.Y.Z`, not `vX.Y.Z` (§4) — the fork inherited upstream's whole tag
+  namespace through v0.4.3.
+- The formula declares **no** `depends_on xcode` (§5). That stanza demands a full Xcode.app and
+  rejects the Command Line Tools, which is a 10 GB requirement for a build that needs only swiftc.
 
 Read `DAISY-PLAN.md` for the app architecture and `HOMEBREW.md` for how UPSTREAM's cask works —
 that file describes m1ckc3s's cask, not ours, and is a source of confusion until step 6.
@@ -101,12 +111,12 @@ The formula needs a tagged source tarball and its sha256. GitHub generates the t
 automatically for any tag, so **there is no artifact to build or upload** — no DMG, nothing to
 notarize.
 
-```
-git tag -a v0.1.0 -m "Daisy Status Bar 0.1.0"
-git push origin v0.1.0
-gh release create v0.1.0 --title "Daisy Status Bar 0.1.0" --notes "…"
-shasum -a 256 <(curl -sL https://github.com/wbuf81/daisy-claude-status-bar/archive/refs/tags/v0.1.0.tar.gz)
-```
+**Tags are `daisy-vX.Y.Z`, never plain `vX.Y.Z`.** Forking carried upstream's entire tag namespace
+across, `v0.0.1` through `v0.4.3`, so `git push origin v0.1.0` is rejected as already existing. The
+alternatives were deleting inherited tags — rewriting the fork's ancestry on a public repo — or
+prefixing ours. Prefixing costs two lines of parsing in `checkForUpdate` and permanently separates
+the two release lines. `main.swift` strips a leading `daisy-` and then a leading `v`, so an
+upstream-shaped tag still parses if one ever reaches that code.
 
 ## 5. Create the tap
 
@@ -114,42 +124,28 @@ A new repo, `wbuf81/homebrew-daisy` — Homebrew resolves the `homebrew-` prefix
 `wbuf81/daisy`. Personal taps need no review and no notability threshold, which official
 homebrew-cask does; it would also reject a second cask for a fork of an app it already ships.
 
-`Formula/daisy-status-bar.rb`:
+Live at **[wbuf81/homebrew-daisy](https://github.com/wbuf81/homebrew-daisy)**; the formula there is
+the source of truth, not this file. Two things about it are worth knowing before editing it:
 
-```ruby
-class DaisyStatusBar < Formula
-  desc "Bernese Mountain Dog that reacts to what Claude Code is doing, in your macOS menu bar"
-  homepage "https://github.com/wbuf81/daisy-claude-status-bar"
-  url "https://github.com/wbuf81/daisy-claude-status-bar/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "…"
-  license "MIT"
+**No `depends_on xcode`.** The obvious `depends_on xcode: :build` fails the install outright:
 
-  depends_on :macos
-  depends_on xcode: :build   # swiftc; Command Line Tools are enough
-
-  def install
-    system "./build.sh"
-    prefix.install "build/Daisy Status Bar.app"
-  end
-
-  def caveats
-    <<~EOS
-      Link Daisy into /Applications and launch her once to install the Claude Code hooks:
-        ln -sf "#{opt_prefix}/Daisy Status Bar.app" /Applications/
-        open "/Applications/Daisy Status Bar.app"
-      She self-quits when no Claude Code session is live; that is normal, not a failed install.
-    EOS
-  end
-end
+```
+daisy-status-bar: A full installation of Xcode.app is required to compile this software.
+Installing just the Command Line Tools is not sufficient.
+Error: An unsatisfied requirement failed this build.
 ```
 
-Then `brew install wbuf81/daisy/daisy-status-bar`.
+That stanza means Xcode.app specifically and will not accept the Command Line Tools, so it would
+impose a 10 GB download for a build that needs only `swiftc` and `lipo` — both of which the CLT
+ship. Omitting it lets Homebrew use whichever toolchain is present.
 
-Open questions to resolve while writing it:
-- `build.sh` runs `xattr -cr` and `codesign --force --sign -`; confirm both work inside Homebrew's
-  build sandbox. If ad-hoc signing fails there, the app still runs — verify rather than assume.
-- Formulae cannot use the cask `app` stanza, hence the `ln -sf` in caveats. Check whether a
-  `postinstall` symlink is acceptable in a personal tap and less clumsy for users.
+**`prefix.install`, not an `app` stanza.** `app` is cask-only, so the bundle lands in the Cellar and
+`caveats` offers an optional `/Applications` symlink for Spotlight and Launchpad. The symlink is
+genuinely optional — see the app-path note in §1, which is what makes launching work from the
+Cellar without it.
+
+Confirmed working in Homebrew's build sandbox: `build.sh`'s `xattr -cr` and
+`codesign --force --sign -` both succeed there, and the whole install takes about 80 seconds.
 
 ## 6. Fix the docs — currently actively wrong
 
@@ -194,3 +190,33 @@ fresh user account.
 Also: `~/.claude/settings.json` on this machine currently has upstream's hooks wired in. The rename
 adds a second, independent set. Both apps will animate at once — two icons in the menu bar — which
 is correct behaviour for coexistence but will look alarming the first time.
+
+## Cutting a release
+
+**Bump the tap's formula BEFORE publishing the GitHub release.** The app's update check compares
+against `releases/latest` with no lag guard (see §2), so a visible release must always be one brew
+can already deliver. Upstream needed a guard because homebrew-cask's autobump bot runs on its own
+schedule; we have no bot, so the ordering is the guard.
+
+1. Bump `CFBundleVersion` + `CFBundleShortVersionString` in `build.sh`, commit, push.
+2. Tag and push — remember the prefix:
+   ```
+   git tag -a daisy-v0.2.0 -m "Daisy Status Bar 0.2.0" && git push origin daisy-v0.2.0
+   ```
+3. Get the tarball hash (the tag must exist first; GitHub generates the tarball on demand):
+   ```
+   curl -sL https://github.com/wbuf81/daisy-claude-status-bar/archive/refs/tags/daisy-v0.2.0.tar.gz \
+     | shasum -a 256
+   ```
+4. In `wbuf81/homebrew-daisy`, update `url`, `version` and `sha256`; commit; push.
+5. Only now: `gh release create daisy-v0.2.0 -R wbuf81/daisy-claude-status-bar --title … --notes …`
+6. Verify like a stranger would:
+   ```
+   brew update && brew upgrade wbuf81/daisy/daisy-status-bar
+   ```
+
+### Testing the formula without a release
+
+`brew install --build-from-source` still fetches the tagged tarball, so it will not pick up
+uncommitted work. To test formula changes against local code, point `url` at a `file://` path or a
+branch archive in a scratch copy of the tap — do not push that.
