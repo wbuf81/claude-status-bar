@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Maps a Claude Code hook event to this session's file: ~/.claude/statusbar/state.d/<session_id>.json
+// Maps a Claude Code hook event to this session's file: ~/.claude/daisy-statusbar/state.d/<session_id>.json
 // Usage: node update.js <prompt|pre|post|notify|permreq|stop>
 
 const fs = require("fs");

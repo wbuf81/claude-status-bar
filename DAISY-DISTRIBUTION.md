@@ -54,7 +54,7 @@ hunts down and deletes "the old copy."
 | Bundle ID | `com.local.claudestatusbar` | `com.wbuf81.daisystatusbar` | `build.sh:33`, `hooks/lifecycle.js:9`, `hooks/update.js:115`, `hooks/*.js` agent labels, `Sources/DaisyState.swift:80-81` (doc comments) |
 | Executable | `ClaudeStatusBar` | `DaisyStatusBar` | `build.sh:11,34`, `hooks/lifecycle.js:10`, `hooks/update.js:112`, `hooks/uninstall.js:22` |
 | `CFBundleName` / display name | `ClaudeStatusBar` / `Claude Status Bar` | `DaisyStatusBar` / `Daisy Status Bar` | `build.sh:31-32` |
-| Hook dir | `~/.claude/statusbar` | `~/.claude/daisy-statusbar` | `hooks/install.js:12`, `hooks/update.js:10`, `hooks/uninstall.js:10`, `hooks/lifecycle.js:11` |
+| Hook dir | `~/.claude/statusbar` | `~/.claude/daisy-statusbar` | `hooks/*.js`, **`Sources/main.swift` (4 places: state.d, quit-intent ×2, uiconfig.json)**, `tools/cycle-states.py` |
 | settings.json backup | `.bak-statusbar` | `.bak-daisy-statusbar` | `hooks/install.js:44` |
 
 ### Landmine: the hook directory must be PREFIXED, never suffixed
@@ -71,6 +71,19 @@ const isOurs = (command) => command.includes(MARKER) || command.includes(quotedM
 `~/.claude/statusbar-daisy` would be a **disaster** — it *does* contain `~/.claude/statusbar`, so
 upstream's `install.js` would classify Daisy's hooks as its own and strip them on every launch.
 Daisy would silently stop animating whenever upstream's app started. Use the `daisy-` prefix.
+
+### The hook dir is referenced from THREE languages, and that is how 0.1.1 broke
+
+This table originally listed only `hooks/*.js` for the hook directory, so the rename missed four
+hardcoded `.claude/statusbar` paths in `main.swift` and one in `cycle-states.py`. The app then read
+UPSTREAM's state directory while the hooks wrote to Daisy's — and it looked fine, because upstream
+was still installed and filling that directory. Uninstalling upstream removed the writer and Daisy
+slept through every session. Shipped in 0.1.0 and 0.1.1; fixed in 0.1.2.
+
+`tests/install.test.js` now greps `Sources/`, `hooks/` and `tools/` for the unprefixed path in all
+three spellings (Swift/prose `.claude/statusbar/`, JS `".claude", "statusbar"`, Python
+`".claude" / "statusbar"`), exempting lines that mention "upstream" so the explanatory comments
+survive. Verified to catch a reintroduced regression in each language.
 
 ### Consequence: the default animation style must change
 

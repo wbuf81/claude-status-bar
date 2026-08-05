@@ -7,7 +7,7 @@
     ./tools/cycle-states.py --hold zoomies  # park on one clip and stay there
     ./tools/cycle-states.py --list          # show the state -> clip mapping and exit
 
-Works by writing a synthetic session file into ~/.claude/statusbar/state.d/, which is exactly what
+Works by writing a synthetic session file into ~/.claude/daisy-statusbar/state.d/, which is exactly what
 hooks/update.js does on a real hook event. Nothing is faked inside the app: it polls that directory,
 so what you see is the real state machine reacting to real input.
 
@@ -25,7 +25,7 @@ import sys
 import time
 from pathlib import Path
 
-STATE_DIR = Path.home() / ".claude" / "statusbar" / "state.d"
+STATE_DIR = Path.home() / ".claude" / "daisy-statusbar" / "state.d"
 SESSION_ID = "zz-daisy-debug"          # sorts last; never collides with a real session id
 STATE_FILE = STATE_DIR / f"{SESSION_ID}.json"
 

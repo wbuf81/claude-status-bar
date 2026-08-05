@@ -314,7 +314,7 @@ final class CopyRowView: NSView {
 
 final class StatusController: NSObject, NSMenuDelegate {
     let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    let stateDir = (NSHomeDirectory() as NSString).appendingPathComponent(".claude/statusbar/state.d")
+    let stateDir = (NSHomeDirectory() as NSString).appendingPathComponent(".claude/daisy-statusbar/state.d")
     let claudeDesktopBundleID = "com.anthropic.claudefordesktop"
 
     var pollTimer: Timer?
@@ -471,7 +471,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         RunLoop.main.add(t, forMode: .common)
         pollTimer = t
         tick()
-        try? FileManager.default.removeItem(atPath: (NSHomeDirectory() as NSString).appendingPathComponent(".claude/statusbar/quit-intent"))
+        try? FileManager.default.removeItem(atPath: (NSHomeDirectory() as NSString).appendingPathComponent(".claude/daisy-statusbar/quit-intent"))
         ensureHooksInstalled()
         checkForUpdate()
     }
@@ -824,10 +824,10 @@ final class StatusController: NSObject, NSMenuDelegate {
         return line
     }
 
-    // Live layout knobs read fresh from ~/.claude/statusbar/uiconfig.json each render, so numeric
+    // Live layout knobs read fresh from ~/.claude/daisy-statusbar/uiconfig.json each render, so numeric
     // tweaks (timer column, pill offset, gap) take effect on the next menu open with NO rebuild.
     func uiConfig() -> [String: Double] {
-        let p = (NSHomeDirectory() as NSString).appendingPathComponent(".claude/statusbar/uiconfig.json")
+        let p = (NSHomeDirectory() as NSString).appendingPathComponent(".claude/daisy-statusbar/uiconfig.json")
         guard let d = FileManager.default.contents(atPath: p),
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return [:] }
         return j.compactMapValues { ($0 as? NSNumber)?.doubleValue }
@@ -986,7 +986,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     // The marker keeps update.js's self-relaunch from undoing an explicit Quit; cleared on the
     // next SessionStart (lifecycle.js) or the next manual launch (below), whichever comes first.
     @objc func quit() {
-        let marker = (NSHomeDirectory() as NSString).appendingPathComponent(".claude/statusbar/quit-intent")
+        let marker = (NSHomeDirectory() as NSString).appendingPathComponent(".claude/daisy-statusbar/quit-intent")
         FileManager.default.createFile(atPath: marker, contents: nil)
         NSApp.terminate(nil)
     }

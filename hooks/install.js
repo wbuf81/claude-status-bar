@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Installs the status-bar hooks into ~/.claude/settings.json (merging, never
-// clobbering existing hooks) and copies update.js to ~/.claude/statusbar/.
+// clobbering existing hooks) and copies update.js to ~/.claude/daisy-statusbar/.
 // Re-runnable: existing status-bar hooks are stripped before re-adding.
 
 const fs = require("fs");

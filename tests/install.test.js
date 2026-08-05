@@ -165,6 +165,45 @@ test("installs portable, quoted hook commands and replaces stale hooks", (t) => 
   );
 });
 
+// Shipped as a bug in 0.1.0 and 0.1.1: the rename to ~/.claude/daisy-statusbar covered hooks/*.js
+// but missed FOUR hardcoded ~/.claude/statusbar paths in main.swift, so the app read upstream's
+// state directory while the hooks wrote to Daisy's. It looked fine only because upstream was
+// installed and filling that directory; uninstalling upstream left Daisy permanently asleep.
+//
+// The paths live in two languages, so no single-language test would have caught it. This grep does.
+test("no source file still points at upstream's ~/.claude/statusbar", () => {
+  const root = path.resolve(__dirname, "..");
+  const files = [];
+  for (const dir of ["Sources", "hooks", "tools"]) {
+    const d = path.join(root, dir);
+    if (!fs.existsSync(d)) continue;
+    for (const f of fs.readdirSync(d)) {
+      if (/\.(swift|js|sh|py)$/.test(f)) files.push(path.join(d, f));
+    }
+  }
+  assert.ok(files.length > 5, "expected to have found source files to scan");
+
+  const offenders = [];
+  for (const f of files) {
+    fs.readFileSync(f, "utf8").split("\n").forEach((line, i) => {
+      // ".claude/statusbar" or '".claude", "statusbar"' — but NOT the daisy- prefixed form.
+      // Lines that say "upstream" are exempt: several comments deliberately name upstream's path
+      // to explain why ours is prefixed, and rewriting those would destroy the explanation.
+      if (/upstream/i.test(line)) return;
+      // Three spellings, because the path is built three ways in this repo:
+      //   Swift/prose  ".claude/statusbar/…"
+      //   JS           path.join(home, ".claude", "statusbar")
+      //   Python       Path.home() / ".claude" / "statusbar"
+      // (?![-\w]) so the suffixed counter-example "statusbar-daisy" is not mistaken for a hit.
+      if (/\.claude\/statusbar(?![-\w])/.test(line) ||
+          /"\.claude"\s*[,/]\s*"statusbar"/.test(line)) {
+        offenders.push(`${path.relative(root, f)}:${i + 1}: ${line.trim()}`);
+      }
+    });
+  }
+  assert.deepEqual(offenders, [], `upstream state paths still referenced:\n${offenders.join("\n")}`);
+});
+
 // Daisy's whole reason for having her own bundle id and her own ~/.claude/daisy-statusbar is that
 // upstream's app can stay installed beside her. install.js decides which hooks are "ours" by plain
 // substring match on that directory, so a badly chosen name silently eats the neighbour's hooks:
