@@ -7,7 +7,9 @@ and sitting with a paw up when Claude needs your permission.
 
 **Actual size, in a menu bar:**
 
-![in the menu bar](art/showcase/menubar.gif)
+![in the menu bar](art/showcase/menubar-light.gif)
+
+![on a dark menu bar](art/showcase/menubar-dark.gif)
 
 ![all clips](art/showcase/all-clips.png)
 

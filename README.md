@@ -1,68 +1,89 @@
-> ### 🐶 This is a fork: **Daisy Status Bar**
->
-> Adds a Bernese Mountain Dog as a fourth animation style. She reacts to what Claude Code is actually
-> doing — dozing when idle, digging when editing, tearing about when a command runs, and sitting with
-> a paw up when Claude needs your permission.
->
-> **Actual size, in a menu bar:**
->
-> ![in the menu bar](art/showcase/menubar.gif)
->
-> The ten clips, at roughly double menu-bar scale so you can see them:
->
-> | | | | | |
-> |:---:|:---:|:---:|:---:|:---:|
-> | ![trot](art/showcase/trot.gif) | ![zoomies](art/showcase/zoomies.gif) | ![dig](art/showcase/dig.gif) | ![sniff](art/showcase/sniff.gif) | ![ask](art/showcase/ask.gif) |
-> | **thinking** | **running a command** | **editing a file** | **reading / searching** | **awaiting permission** |
-> | ![wag](art/showcase/wag.gif) | ![drowsy](art/showcase/drowsy.gif) | ![sleep](art/showcase/sleep.gif) | ![yawn](art/showcase/yawn.gif) | ![alert](art/showcase/alert.gif) |
-> | **turn complete** | **idle** | **idle 2 min+** | **stretching** | **ears up** |
->
-> ## Install Daisy
->
-> ```bash
-> brew install wbuf81/daisy/daisy-status-bar && open -a "Daisy Status Bar"
-> ```
->
-> That's it. It builds from source on your own Mac, so it takes a minute or two rather than seconds,
-> and it needs Xcode Command Line Tools (`xcode-select --install` if you haven't got them). The
-> upside: nothing to download and no Gatekeeper warning to click past, because an app compiled
-> locally is never quarantined.
->
-> **The `open` at the end matters** — that first launch is what installs the Claude Code hooks.
-> Then start or continue a `claude` session and she'll appear.
->
-> If she vanishes a few seconds later with no session running, that's correct, not a failed
-> install: she self-quits when no Claude Code session is live and comes back on her own.
->
-> ```bash
-> brew upgrade wbuf81/daisy/daisy-status-bar   # update
-> ```
->
-> <details>
-> <summary>Uninstalling</summary>
->
-> ```bash
-> node "$(brew --prefix daisy-status-bar)/Daisy Status Bar.app/Contents/Resources/uninstall.js"
-> brew uninstall daisy-status-bar
-> ```
->
-> The first line removes only Daisy's own hook entries from `~/.claude/settings.json` — brew can't
-> edit that file, since it's shared with Claude Code itself. The second removes the app.
-> </details>
->
-> Daisy has her own bundle id and her own hooks directory, so she installs **alongside** upstream's
-> app rather than replacing it. Run both, or either, or neither.
->
-> Full details, the state map, and how the art was made: **[DAISY.md](DAISY.md)**
->
-> ---
->
-> Everything below is the upstream README from
-> [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar), unchanged.
->
-> ⚠️ **Its Install section installs UPSTREAM's app, not Daisy.** `brew install --cask
-> claude-status-bar` gets you m1ckc3s's build with no dog in it, and its Releases link points at
-> upstream's DMGs. Use the command above for Daisy.
+<h1 align="center">🐶 Daisy Status Bar</h1>
+
+<p align="center">
+  <b>A Bernese Mountain Dog who lives in your macOS menu bar<br>
+  and reacts to what Claude Code is actually doing.</b>
+</p>
+
+<p align="center">
+  <img src="art/showcase/menubar-light.gif" alt="Daisy trotting, digging and sitting in a macOS menu bar" width="760">
+</p>
+
+<p align="center">
+  <img src="art/showcase/menubar-dark.gif" alt="The same, on a dark menu bar" width="760">
+</p>
+
+<p align="center"><sub>
+  Shown at actual size. One logical pixel lands on one device pixel, so she stays crisp on Retina.
+</sub></p>
+
+## Install
+
+```bash
+brew install wbuf81/daisy/daisy-status-bar && open -a "Daisy Status Bar"
+```
+
+That's it. She builds from source on your own Mac, so it takes a minute or two rather than seconds,
+and needs Xcode Command Line Tools (`xcode-select --install` if you haven't got them). The upside:
+nothing to download and no Gatekeeper warning to click past, because an app compiled locally is
+never quarantined.
+
+**The `open` at the end matters** — that first launch is what installs the Claude Code hooks. Then
+start or continue a `claude` session and she'll appear.
+
+If she vanishes a few seconds later with no session running, that's correct, not a failed install:
+she self-quits when nothing is live, and comes back on her own.
+
+```bash
+brew upgrade wbuf81/daisy/daisy-status-bar   # update
+```
+
+<details>
+<summary>Uninstalling</summary>
+
+```bash
+node "$(brew --prefix daisy-status-bar)/Daisy Status Bar.app/Contents/Resources/uninstall.js"
+brew uninstall daisy-status-bar
+```
+
+The first line removes only Daisy's own hook entries from `~/.claude/settings.json` — brew can't
+edit that file, since it's shared with Claude Code itself. The second removes the app.
+</details>
+
+## She's reacting, not just animating
+
+Every clip is wired to real Claude Code state. You can tell what's happening without looking away
+from what you're doing — and you can tell **the moment she needs you**, because she sits down and
+puts a paw up.
+
+<p align="center">
+  <img src="art/showcase/menubar-states.png" alt="Every state shown in a menu bar, light and dark" width="806">
+</p>
+
+| | | | | |
+|:---:|:---:|:---:|:---:|:---:|
+| ![trot](art/showcase/trot.gif) | ![zoomies](art/showcase/zoomies.gif) | ![dig](art/showcase/dig.gif) | ![sniff](art/showcase/sniff.gif) | ![ask](art/showcase/ask.gif) |
+| **thinking** | **running a command** | **editing a file** | **reading / searching** | **awaiting permission** |
+| ![wag](art/showcase/wag.gif) | ![drowsy](art/showcase/drowsy.gif) | ![sleep](art/showcase/sleep.gif) | ![yawn](art/showcase/yawn.gif) | ![alert](art/showcase/alert.gif) |
+| **turn complete** | **idle** | **idle 2 min+** | **stretching** | **ears up** |
+
+<sub>Above: roughly double menu-bar scale, so you can actually see her. Ten hand-tuned clips —
+she goes drowsy after a minute, falls asleep after two, and stretches or perks her ears at random
+so she never loops like a GIF.</sub>
+
+Daisy is a fourth animation style, so the Claude Spark, crab and web icons are all still in the
+menu. She has her own bundle id and hooks directory too, which means she installs **alongside**
+upstream's app rather than replacing it — run both, or either, or neither.
+
+**Full details, the state map, and how the art was made: [DAISY.md](DAISY.md)**
+
+---
+
+<sub>Everything below is the upstream README from
+[m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar), unchanged.
+⚠️ <b>Its Install section installs UPSTREAM's app, not Daisy.</b> <code>brew install --cask
+claude-status-bar</code> gets you m1ckc3s's build with no dog in it, and its Releases link points
+at upstream's DMGs. Use the command above for Daisy.</sub>
 
 ---
 A tiny macOS menu bar app that shows **Claude Code's live status**: an animated Claude icon while it's thinking or running a tool, a yellow dot when it's awaiting your permission, and the elapsed time of the current turn. Lightweight, no window, no dock icon, no usage dashboards.
