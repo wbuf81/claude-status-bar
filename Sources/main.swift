@@ -571,7 +571,13 @@ final class StatusController: NSObject, NSMenuDelegate {
             guard let data = data,
                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let tag = obj["tag_name"] as? String else { return }
-            let ver = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+            // Daisy's tags are "daisy-v0.1.0", not "v0.1.0". The fork inherited every upstream tag
+            // through v0.4.3, so a plain vX.Y.Z would collide with theirs and interleave two
+            // unrelated release lines in one tag namespace. Both prefixes are stripped, so an
+            // upstream-shaped tag still parses if one ever reaches this code path.
+            var ver = tag
+            if ver.hasPrefix("daisy-") { ver = String(ver.dropFirst("daisy-".count)) }
+            if ver.hasPrefix("v") { ver = String(ver.dropFirst()) }
             UserDefaults.standard.set(ver, forKey: "latestVersion")
             UserDefaults.standard.set(now, forKey: "lastUpdateCheck")
         }.resume()
