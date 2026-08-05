@@ -379,7 +379,14 @@ final class StatusController: NSObject, NSMenuDelegate {
     /// Daisy alone animates in every state (idle, permission, per-tool), so she needs a driver that
     /// remembers which clip is playing rather than a single frame index. See DaisyState.swift.
     let daisy = DaisyDriver()
-    var animStyle: AnimStyle = .web
+    // .daisy, not upstream's .web. This app is called Daisy Status Bar and is installed by people
+    // who came for the dog, so shipping the Claude Spark by default means a fresh install shows no
+    // dog at all until you find the menu. The other three styles stay available in the menu.
+    //
+    // Upstream's default was harmless while the fork shared upstream's bundle id, because the
+    // animStyle=daisy preference already sat in that shared domain. Giving Daisy her own bundle id
+    // gave her an empty preferences domain, which is what exposed this.
+    var animStyle: AnimStyle = .daisy
     var showTimer = false
     var iconSystem = false // false = brand Orange; true = adaptive black/white (template image)
     var useThinkingWords = true     // rotate a playful verb ("Manifesting…") in place of "Thinking…"

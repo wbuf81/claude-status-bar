@@ -72,6 +72,15 @@ const isOurs = (command) => command.includes(MARKER) || command.includes(quotedM
 upstream's `install.js` would classify Daisy's hooks as its own and strip them on every launch.
 Daisy would silently stop animating whenever upstream's app started. Use the `daisy-` prefix.
 
+### Consequence: the default animation style must change
+
+A new bundle id means an EMPTY preferences domain. `animStyle = daisy` was only ever set in the
+shared `com.local.claudestatusbar` domain, and upstream's in-code default is `.web` (Claude Spark),
+so the first Daisy build with her own id shipped a dog-free dog app: a fresh install showed the
+spark until you found the menu. Shipped as 0.1.0, fixed in 0.1.1 by defaulting `animStyle` to
+`.daisy`. Worth remembering whenever anything else reads `UserDefaults.standard` — every preference
+upstream sets by default is unset for us.
+
 ### Consequence: `main.swift:473-481` self-deletion must go
 
 That block removes `/Applications/ClaudeStatusBar.app` after verifying its bundle ID. It exists for
